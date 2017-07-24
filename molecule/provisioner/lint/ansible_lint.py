@@ -50,6 +50,9 @@ class AnsibleLint(base.Base):
                 - path/exclude1
                 - path/exclude2
               force-color: True
+              add-rules:
+                - path/ruledir1
+                - path/ruledir2
 
     The role linting can be disabled by setting `enabled` to False.
 
@@ -110,9 +113,12 @@ class AnsibleLint(base.Base):
         options = self.options
         excludes = options.pop('excludes')
         exclude_args = ['--exclude={}'.format(exclude) for exclude in excludes]
+        rules = options.pop('add-rules')
+        rules_args = ['-R -r {}'.format(rule_dir) for rule_dir in rules]
         self._ansible_lint_command = sh.ansible_lint.bake(
             options,
             exclude_args,
+            rules_args,
             self._config.provisioner.playbooks.converge,
             _env=self.env,
             _out=LOG.out,
