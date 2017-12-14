@@ -1,33 +1,24 @@
 ---
 - name: Converge
   hosts: all
-  gather_facts: False
-  tasks:
-    - name: Install python for Ansible
-      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal python-zipstream)
-      become: True
-      changed_when: False
-
-- name: Converge
-  hosts: all
-  become: True
+  become: true
   roles:
     - molecule
 
 - name: Converge
   hosts: bar
-  become: True
+  become: true
   roles:
     - molecule
 
 - name: Converge
   hosts: foo
-  become: True
+  become: true
   roles:
     - molecule
 
 - name: Converge
   hosts: baz
-  become: True
+  become: true
   roles:
     - molecule

@@ -1,25 +1,26 @@
 ---
 {% raw -%}
-- name: Setup
+- name: Create
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
   vars:
     molecule_file: "{{ lookup('env', 'MOLECULE_FILE') }}"
     molecule_instance_config: "{{ lookup('env', 'MOLECULE_INSTANCE_CONFIG') }}"
-    molecule_yml: "{{ lookup('file', molecule_file) | from_yaml }}"
+    molecule_yml: "{{ lookup('file', molecule_file) | molecule_from_yaml }}"
   tasks:
     - name: Create molecule instance(s)
       molecule_vagrant:
         instance_name: "{{ item.name }}"
         instance_interfaces: "{{ item.interfaces | default(omit) }}"
+        instance_raw_config_args: "{{ item.instance_raw_config_args | default(omit) }}"
 
         platform_box: "{{ item.box }}"
         platform_box_version: "{{ item.box_version | default(omit) }}"
         platform_box_url: "{{ item.box_url | default(omit) }}"
 
-        provider_name: "{{ item.provider | default(omit) }}"
+        provider_name: "{{ molecule_yml.driver.provider.name }}"
         provider_memory: "{{ item.memory | default(omit) }}"
         provider_cpus: "{{ item.cpus | default(omit) }}"
         provider_raw_config_args: "{{ item.raw_config_args | default(omit) }}"
@@ -27,6 +28,9 @@
         state: up
       register: server
       with_items: "{{ molecule_yml.platforms }}"
+
+    # NOTE(retr0h): Vagrant/VBox sucks and parallelizing instance creation
+    # causes issues.
 
     # Mandatory configuration for Molecule to function.
 

@@ -18,8 +18,6 @@
 #  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #  DEALINGS IN THE SOFTWARE.
 
-import os
-
 import click
 
 from molecule import logger
@@ -51,14 +49,7 @@ class Syntax(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Provisioner: [{}]'.format(self._config.provisioner.name)
-        LOG.info(msg)
-        msg = 'Syntax Verification of Playbook: [{}]'.format(
-            os.path.basename(self._config.provisioner.playbooks.converge))
-        LOG.info(msg)
-
+        self.print_info()
         self._config.provisioner.syntax()
 
 
@@ -70,13 +61,16 @@ class Syntax(base.Base):
     default='default',
     help='Name of the scenario to target. (default)')
 def syntax(ctx, scenario_name):  # pragma: no cover
-    """ Use a provisioner to syntax check the role. """
+    """ Use the provisioner to syntax check the role. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Syntax(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

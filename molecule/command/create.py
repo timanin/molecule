@@ -18,8 +18,6 @@
 #  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #  DEALINGS IN THE SOFTWARE.
 
-import os
-
 import click
 
 from molecule import config
@@ -56,20 +54,12 @@ class Create(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Provisioner: [{}]'.format(self._config.provisioner.name)
-        LOG.info(msg)
-        msg = 'Driver: [{}]'.format(self._config.driver.name)
-        LOG.info(msg)
-        msg = 'Playbook: [{}]'.format(
-            os.path.basename(self._config.provisioner.playbooks.setup))
-        LOG.info(msg)
-
+        self.print_info()
         self._config.state.change_state('driver', self._config.driver.name)
 
-        if self._config.driver.delegated:
-            LOG.warn('Skipping, instances are delegated.')
+        if self._config.driver.delegated and not self._config.driver.managed:
+            msg = 'Skipping, instances are delegated.'
+            LOG.warn(msg)
             return
 
         if self._config.state.created:
@@ -77,7 +67,8 @@ class Create(base.Base):
             LOG.warn(msg)
             return
 
-        self._config.provisioner.setup()
+        self._config.provisioner.create()
+
         self._config.state.change_state('created', True)
 
 
@@ -94,14 +85,17 @@ class Create(base.Base):
     type=click.Choice(config.molecule_drivers()),
     help='Name of driver to use. (docker)')
 def create(ctx, scenario_name, driver_name):  # pragma: no cover
-    """ Start instances. """
+    """ Use the provisioner to start the instances. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
         'driver_name': driver_name,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Create(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

@@ -1,8 +1,8 @@
 ---
-- name: Teardown
+- name: Destroy
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   tasks:
     - include: destroy/docker.yml
     - include: destroy/ec2.yml

@@ -62,7 +62,10 @@ def molecule_driver_section_data():
 def molecule_driver_delegated_section_data():
     return {
         'driver': {
-            'name': 'delegated'
+            'name': 'delegated',
+            'options': {
+                'managed': False,
+            },
         },
     }
 
@@ -177,8 +180,10 @@ def molecule_file_fixture(molecule_scenario_directory_fixture,
 @pytest.fixture
 def config_instance(molecule_file_fixture, molecule_data):
     pytest.helpers.write_molecule_file(molecule_file_fixture, molecule_data)
+    c = config.Config(molecule_file_fixture)
+    c.command_args = {'subcommand': 'test'}
 
-    return config.Config(molecule_file_fixture)
+    return c
 
 
 # Mocks
@@ -192,6 +197,11 @@ def patched_print_debug(mocker):
 @pytest.fixture
 def patched_logger_info(mocker):
     return mocker.patch('logging.Logger.info')
+
+
+@pytest.fixture
+def patched_logger_out(mocker):
+    return mocker.patch('molecule.logger.CustomLogger.out')
 
 
 @pytest.fixture
@@ -258,18 +268,5 @@ def patched_testinfra(mocker):
 
 
 @pytest.fixture
-def molecule_verifier_lint_section_data():
-    return {
-        'verifier': {
-            'name': 'testinfra',
-            'lint': {
-                'name': 'flake8',
-                'options': {
-                    'foo': 'bar',
-                },
-                'env': {
-                    'foo': 'bar',
-                },
-            }
-        }
-    }
+def patched_scenario_setup(mocker):
+    return mocker.patch('molecule.scenario.Scenario._setup')

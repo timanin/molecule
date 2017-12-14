@@ -1,31 +1,41 @@
 ---
 {% raw -%}
-- name: Setup
+- name: Create
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
   vars:
     molecule_file: "{{ lookup('env', 'MOLECULE_FILE') }}"
     molecule_instance_config: "{{ lookup('env', 'MOLECULE_INSTANCE_CONFIG') }}"
-    molecule_yml: "{{ lookup('file', molecule_file) | from_yaml }}"
+    molecule_yml: "{{ lookup('file', molecule_file) | molecule_from_yaml }}"
 
-    user: cloud-user
+    ssh_user: cloud-user
     ssh_port: 22
+
     security_group_name: molecule
     security_group_description: "Security group for testing Molecule"
     security_group_rules:
-      - { proto: 'tcp', port: "{{ ssh_port }}", cidr: '0.0.0.0/0' }
-      - { proto: 'icmp', port: -1, cidr: '0.0.0.0/0' }
-      - { ethertype: 'IPv4', group: "{{ security_group.id }}" }
-      - { ethertype: 'IPv6', group: "{{ security_group.id }}" }
+      - proto: tcp
+        port: "{{ ssh_port }}"
+        cidr: '0.0.0.0/0'
+      - proto: icmp
+        port: -1
+        cidr: '0.0.0.0/0'
+      - ethertype: IPv4
+        group: "{{ security_group.id }}"
+      - ethertype: IPv6
+        group: "{{ security_group.id }}"
+
     neutron_network_name: molecule
+
     keypair_name: molecule_key
     keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
+
     nova_image: Ubuntu-16.04
     nova_flavor: NO-Nano
   tasks:
-    - include: security_groups.yml
+    - include: security_group.yml
     - include: keypair.yml
 
     - name: Gather facts about network for use with instance creation
@@ -43,6 +53,16 @@
           - net-id: "{{ openstack_networks[0]['id'] }}"
       register: server
       with_items: "{{ molecule_yml.platforms }}"
+      async: 7200
+      poll: 0
+
+    - name: Wait for instance(s) creation to complete
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: os_jobs
+      until: os_jobs.finished
+      retries: 300
+      with_items: "{{ server.results }}"
 
     # Mandatory configuration for Molecule to function.
 
@@ -51,10 +71,10 @@
         instance_conf_dict: {
           'instance': "{{ item.openstack.name }}",
           'address': "{{ item.openstack.accessIPv4 }}",
-          'user': "{{ user }}",
+          'user': "{{ ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}", }
-      with_items: "{{ server.results }}"
+      with_items: "{{ os_jobs.results }}"
       register: instance_config_dict
       when: server.changed | bool
 
@@ -77,5 +97,5 @@
         host: "{{ item.address }}"
         search_regex: SSH
         delay: 10
-      with_items: "{{ lookup('file', molecule_instance_config) | from_yaml }}"
+      with_items: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"
 {%- endraw %}

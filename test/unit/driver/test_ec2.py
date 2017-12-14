@@ -60,7 +60,9 @@ def test_name_property(ec2_instance):
 
 
 def test_options_property(ec2_instance):
-    assert {} == ec2_instance.options
+    x = {'managed': True}
+
+    assert x == ec2_instance.options
 
 
 def test_login_cmd_template_property(ec2_instance):
@@ -69,8 +71,7 @@ def test_login_cmd_template_property(ec2_instance):
          '-o ControlMaster=auto '
          '-o ControlPersist=60s '
          '-o IdentitiesOnly=yes '
-         '-o StrictHostKeyChecking=no '
-         '-o ControlPath=~/.ansible/cp/%C')
+         '-o StrictHostKeyChecking=no')
 
     assert x == ec2_instance.login_cmd_template
 
@@ -93,8 +94,12 @@ def test_default_safe_files_property(ec2_instance):
     assert x == ec2_instance.default_safe_files
 
 
-def test_delegated(ec2_instance):
+def test_delegated_property(ec2_instance):
     assert not ec2_instance.delegated
+
+
+def test_managed_property(ec2_instance):
+    assert ec2_instance.managed
 
 
 def test_default_ssh_connection_options_property(ec2_instance):
@@ -104,7 +109,6 @@ def test_default_ssh_connection_options_property(ec2_instance):
         '-o ControlPersist=60s',
         '-o IdentitiesOnly=yes',
         '-o StrictHostKeyChecking=no',
-        '-o ControlPath=~/.ansible/cp/%C',
     ]
 
     assert x == ec2_instance.default_ssh_connection_options
@@ -166,8 +170,7 @@ def test_ansible_connection_options(mocker, ec2_instance):
                                     '-o ControlMaster=auto '
                                     '-o ControlPersist=60s '
                                     '-o IdentitiesOnly=yes '
-                                    '-o StrictHostKeyChecking=no '
-                                    '-o ControlPath=~/.ansible/cp/%C'),
+                                    '-o StrictHostKeyChecking=no'),
     }
 
     assert x == ec2_instance.ansible_connection_options('foo')
@@ -203,7 +206,6 @@ def test_ssh_connection_options_property(ec2_instance):
         '-o ControlPersist=60s',
         '-o IdentitiesOnly=yes',
         '-o StrictHostKeyChecking=no',
-        '-o ControlPath=~/.ansible/cp/%C',
     ]
 
     assert x == ec2_instance.ssh_connection_options

@@ -44,14 +44,17 @@ def driver_name(request):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
+        ('driver/delegated', 'delegated', 'gce'),
         ('driver/delegated', 'delegated', 'openstack'),
         #  ('driver/delegated', 'delegated', 'vagrant'),
         ('driver/vagrant', 'vagrant', 'default'),
@@ -70,12 +73,14 @@ def test_command_check(scenario_to_test, with_scenario, scenario_name):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -97,12 +102,14 @@ def test_command_converge(scenario_to_test, with_scenario, scenario_name):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -123,6 +130,7 @@ def test_command_create(scenario_to_test, with_scenario, scenario_name):
 
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name', [
+        ('dependency', 'azure', 'ansible-galaxy'),
         ('dependency', 'docker', 'ansible-galaxy'),
         ('dependency', 'ec2', 'ansible-galaxy'),
         ('dependency', 'gce', 'ansible-galaxy'),
@@ -149,6 +157,7 @@ def test_command_dependency_ansible_galaxy(scenario_to_test, with_scenario,
 
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name', [
+        ('dependency', 'azure', 'gilt'),
         ('dependency', 'docker', 'gilt'),
         ('dependency', 'ec2', 'gilt'),
         ('dependency', 'gce', 'gilt'),
@@ -168,20 +177,22 @@ def test_command_dependency_gilt(scenario_to_test, with_scenario,
     cmd = sh.molecule.bake('dependency', **options)
     pytest.helpers.run_command(cmd)
 
-    dependency_role = os.path.join('molecule', 'ansible-galaxy', '.molecule',
-                                   'roles', 'timezone')
+    dependency_role = os.path.join('molecule', 'gilt', '.molecule', 'roles',
+                                   'timezone')
     assert os.path.isdir(dependency_role)
 
 
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -203,39 +214,14 @@ def test_command_destroy(scenario_to_test, with_scenario, scenario_name):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
-        ('driver/delegated', 'delegated', 'docker'),
-        ('driver/delegated', 'delegated', 'ec2'),
-        ('driver/delegated', 'delegated', 'gce'),
-        ('driver/delegated', 'delegated', 'openstack'),
-        #  ('driver/delegated', 'delegated', 'vagrant'),
-        ('driver/vagrant', 'vagrant', 'default'),
-    ],
-    indirect=[
-        'scenario_to_test',
-        'driver_name',
-        'scenario_name',
-    ])
-def test_command_destruct(scenario_to_test, with_scenario, scenario_name):
-    options = {'scenario_name': scenario_name}
-    cmd = sh.molecule.bake('destruct', **options)
-    pytest.helpers.run_command(cmd)
-
-
-@pytest.mark.parametrize(
-    'scenario_to_test, driver_name, scenario_name',
-    [
-        ('driver/docker', 'docker', 'default'),
-        ('driver/ec2', 'ec2', 'default'),
-        ('driver/gce', 'gce', 'default'),
-        ('driver/lxc', 'lxc', 'default'),
-        ('driver/lxd', 'lxd', 'default'),
-        ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -254,6 +240,7 @@ def test_command_idempotence(scenario_to_test, with_scenario, scenario_name):
 
 @pytest.mark.parametrize(
     'driver_name', [
+        ('azure'),
         ('docker'),
         ('ec2'),
         ('gce'),
@@ -271,6 +258,7 @@ def test_command_init_role(temp_dir, driver_name, skip_test):
 
 @pytest.mark.parametrize(
     'driver_name', [
+        ('azure'),
         ('docker'),
         ('ec2'),
         ('gce'),
@@ -289,12 +277,14 @@ def test_command_init_scenario(temp_dir, driver_name, skip_test):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -316,6 +306,14 @@ def test_command_lint(scenario_to_test, with_scenario, scenario_name):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, expected',
     [
+        ('driver/azure', 'azure', """
+
+Instance Name    Driver Name    Provisioner Name    Scenario Name    Created    Converged
+---------------  -------------  ------------------  ---------------  ---------  -----------
+instance         Azure          Ansible             default          False      False
+instance-1       Azure          Ansible             multi-node       False      False
+instance-2       Azure          Ansible             multi-node       False      False
+""".strip()),  # noqa
         ('driver/docker', 'docker', """
 Instance Name    Driver Name    Provisioner Name    Scenario Name    Created    Converged
 ---------------  -------------  ------------------  ---------------  ---------  -----------
@@ -385,6 +383,11 @@ def test_command_list(scenario_to_test, with_scenario, expected):
 
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, expected', [
+        ('driver/azure', 'azure', """
+instance    Azure  Ansible  default     False  False
+instance-1  Azure  Ansible  multi-node  False  False
+instance-2  Azure  Ansible  multi-node  False  False
+""".strip()),
         ('driver/docker', 'docker', """
 instance    Docker  Ansible  default     False  False
 instance-1  Docker  Ansible  multi-node  False  False
@@ -440,6 +443,17 @@ def test_command_list_with_format_plain(scenario_to_test, with_scenario,
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, login_args, scenario_name',
     [
+        ('driver/azure', 'azure', [[
+            'instance',
+            '.*instance.*',
+        ]], 'default'),
+        ('driver/azure', 'azure', [[
+            'instance-1',
+            '.*instance-1.*',
+        ], [
+            'instance-2',
+            '.*instance-2.*',
+        ]], 'multi-node'),
         ('driver/docker', 'docker', [[
             'instance',
             '.*instance.*',
@@ -487,6 +501,10 @@ def test_command_list_with_format_plain(scenario_to_test, with_scenario,
             '.*instance-2.*',
         ]], 'multi-node'),
         ('driver/delegated', 'delegated', [[
+            'delegated-instance-azure',
+            '.*delegated-instance-azure.*',
+        ]], 'azure'),
+        ('driver/delegated', 'delegated', [[
             'delegated-instance-docker',
             '.*delegated-instance-docker.*',
         ]], 'docker'),
@@ -527,12 +545,76 @@ def test_command_login(scenario_to_test, with_scenario, login_args,
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/ec2', 'ec2', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
+        ('driver/delegated', 'delegated', 'docker'),
+        ('driver/delegated', 'delegated', 'ec2'),
+        ('driver/delegated', 'delegated', 'gce'),
+        ('driver/delegated', 'delegated', 'openstack'),
+        #  ('driver/delegated', 'delegated', 'vagrant'),
+        ('driver/vagrant', 'vagrant', 'default'),
+    ],
+    indirect=[
+        'scenario_to_test',
+        'driver_name',
+        'scenario_name',
+    ])
+def test_command_prepare(scenario_to_test, with_scenario, scenario_name):
+    options = {'scenario_name': scenario_name}
+
+    cmd = sh.molecule.bake('create', **options)
+    pytest.helpers.run_command(cmd)
+
+    cmd = sh.molecule.bake('prepare', **options)
+    pytest.helpers.run_command(cmd)
+
+
+@pytest.mark.parametrize(
+    'scenario_to_test, driver_name, scenario_name',
+    [
+        ('driver/azure', 'azure', 'default'),
+        ('driver/docker', 'docker', 'default'),
+        ('driver/ec2', 'ec2', 'default'),
+        ('driver/gce', 'gce', 'default'),
+        ('driver/lxc', 'lxc', 'default'),
+        ('driver/lxd', 'lxd', 'default'),
+        ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
+        ('driver/delegated', 'delegated', 'docker'),
+        ('driver/delegated', 'delegated', 'ec2'),
+        ('driver/delegated', 'delegated', 'gce'),
+        ('driver/delegated', 'delegated', 'openstack'),
+        #  ('driver/delegated', 'delegated', 'vagrant'),
+        ('driver/vagrant', 'vagrant', 'default'),
+    ],
+    indirect=[
+        'scenario_to_test',
+        'driver_name',
+        'scenario_name',
+    ])
+def test_command_side_effect(scenario_to_test, with_scenario, scenario_name):
+    options = {'scenario_name': scenario_name}
+    cmd = sh.molecule.bake('side-effect', **options)
+    pytest.helpers.run_command(cmd)
+
+
+@pytest.mark.parametrize(
+    'scenario_to_test, driver_name, scenario_name',
+    [
+        ('driver/azure', 'azure', 'default'),
+        ('driver/docker', 'docker', 'default'),
+        ('driver/ec2', 'ec2', 'default'),
+        ('driver/gce', 'gce', 'default'),
+        ('driver/lxc', 'lxc', 'default'),
+        ('driver/lxd', 'lxd', 'default'),
+        ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -554,12 +636,14 @@ def test_command_syntax(scenario_to_test, with_scenario, scenario_name):
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', None),
         ('driver/ec2', 'ec2', None),
         ('driver/gce', 'gce', None),
         ('driver/lxc', 'lxc', None),
         ('driver/lxd', 'lxd', None),
         ('driver/openstack', 'openstack', None),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),
@@ -580,11 +664,13 @@ def test_command_test(scenario_to_test, with_scenario, scenario_name,
 @pytest.mark.parametrize(
     'scenario_to_test, driver_name, scenario_name',
     [
+        ('driver/azure', 'azure', 'default'),
         ('driver/docker', 'docker', 'default'),
         ('driver/gce', 'gce', 'default'),
         ('driver/lxc', 'lxc', 'default'),
         ('driver/lxd', 'lxd', 'default'),
         ('driver/openstack', 'openstack', 'default'),
+        #  ('driver/delegated', 'delegated', 'azure'),
         ('driver/delegated', 'delegated', 'docker'),
         ('driver/delegated', 'delegated', 'ec2'),
         ('driver/delegated', 'delegated', 'gce'),

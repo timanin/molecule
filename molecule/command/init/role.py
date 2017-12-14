@@ -50,7 +50,8 @@ class Role(base.Base):
 
         role_name = self._command_args['role_name']
         role_directory = os.getcwd()
-        LOG.info('Initializing new role {}...'.format(role_name))
+        msg = 'Initializing new role {}...'.format(role_name)
+        LOG.info(msg)
 
         if os.path.isdir(role_name):
             msg = ('The directory {} exists. '
@@ -66,8 +67,7 @@ class Role(base.Base):
         for template in templates:
             self._process_templates(template, self._command_args,
                                     scenario_base_directory)
-        self._process_templates('molecule', self._command_args,
-                                scenario_base_directory)
+        self._process_templates('molecule', self._command_args, role_directory)
 
         role_directory = os.path.join(role_directory, role_name)
         msg = 'Initialized role in {} successfully.'.format(role_directory)

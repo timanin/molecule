@@ -86,20 +86,24 @@ class Goss(base.Base):
 
     def execute(self):
         if not self.enabled:
-            LOG.warn('Skipping, verifier is disabled.')
+            msg = 'Skipping, verifier is disabled.'
+            LOG.warn(msg)
             return
 
         if not len(self._tests) > 0:
-            LOG.warn('Skipping, no tests found.')
+            msg = 'Skipping, no tests found.'
+            LOG.warn(msg)
             return
 
         msg = 'Executing Goss tests found in {}/...'.format(self.directory)
         LOG.info(msg)
 
-        goss_playbook = os.path.join(self.directory, 'test_default.yml')
+        goss_playbook = os.path.join(self._config.scenario.directory,
+                                     'verifier.yml')
         self._config.provisioner.converge(goss_playbook)
 
-        LOG.success('Verifier completed successfully.')
+        msg = 'Verifier completed successfully.'
+        LOG.success(msg)
 
     def _get_tests(self):
         """

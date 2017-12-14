@@ -61,7 +61,9 @@ def test_name_property(openstack_instance):
 
 
 def test_options_property(openstack_instance):
-    assert {} == openstack_instance.options
+    x = {'managed': True}
+
+    assert x == openstack_instance.options
 
 
 def test_login_cmd_template_property(openstack_instance):
@@ -70,8 +72,7 @@ def test_login_cmd_template_property(openstack_instance):
          '-o ControlMaster=auto '
          '-o ControlPersist=60s '
          '-o IdentitiesOnly=yes '
-         '-o StrictHostKeyChecking=no '
-         '-o ControlPath=~/.ansible/cp/%C')
+         '-o StrictHostKeyChecking=no')
 
     assert x == openstack_instance.login_cmd_template
 
@@ -94,8 +95,12 @@ def test_default_safe_files_property(openstack_instance):
     assert x == openstack_instance.default_safe_files
 
 
-def test_delegated(openstack_instance):
+def test_delegated_property(openstack_instance):
     assert not openstack_instance.delegated
+
+
+def test_managed_property(openstack_instance):
+    assert openstack_instance.managed
 
 
 def test_default_ssh_connection_options_property(openstack_instance):
@@ -105,7 +110,6 @@ def test_default_ssh_connection_options_property(openstack_instance):
         '-o ControlPersist=60s',
         '-o IdentitiesOnly=yes',
         '-o StrictHostKeyChecking=no',
-        '-o ControlPath=~/.ansible/cp/%C',
     ]
 
     assert x == openstack_instance.default_ssh_connection_options
@@ -167,8 +171,7 @@ def test_ansible_connection_options(mocker, openstack_instance):
                                     '-o ControlMaster=auto '
                                     '-o ControlPersist=60s '
                                     '-o IdentitiesOnly=yes '
-                                    '-o StrictHostKeyChecking=no '
-                                    '-o ControlPath=~/.ansible/cp/%C'),
+                                    '-o StrictHostKeyChecking=no'),
     }
 
     assert x == openstack_instance.ansible_connection_options('foo')
@@ -204,7 +207,6 @@ def test_ssh_connection_options_property(openstack_instance):
         '-o ControlPersist=60s',
         '-o IdentitiesOnly=yes',
         '-o StrictHostKeyChecking=no',
-        '-o ControlPath=~/.ansible/cp/%C',
     ]
 
     assert x == openstack_instance.ssh_connection_options

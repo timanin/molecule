@@ -49,11 +49,7 @@ class Dependency(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Dependency: [{}]'.format(self._config.dependency.name)
-        LOG.info(msg)
-
+        self.print_info()
         self._config.dependency.execute()
 
 
@@ -65,13 +61,16 @@ class Dependency(base.Base):
     default='default',
     help='Name of the scenario to target. (default)')
 def dependency(ctx, scenario_name):  # pragma: no cover
-    """ Mange the role's dependencies. """
+    """ Manage the role's dependencies. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Dependency(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

@@ -49,11 +49,7 @@ class Verify(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Verifier: [{}]'.format(self._config.verifier.name)
-        LOG.info(msg)
-
+        self.print_info()
         self._config.verifier.execute()
 
 
@@ -67,12 +63,14 @@ class Verify(base.Base):
 def verify(ctx, scenario_name):  # pragma: no cover
     """ Run automated tests against instances. """
     args = ctx.obj.get('args')
-
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Verify(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

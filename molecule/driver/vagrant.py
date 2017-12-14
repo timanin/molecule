@@ -32,15 +32,18 @@ class Vagrant(base.Base):
     The class responsible for managing `Vagrant`_ instances.  `Vagrant`_ is
     `not` the default driver used in Molecule.
 
+    Molecule leverages Molecule's own :ref:`molecule_vagrant_module`, by
+    mapping variables from `molecule.yml` into `create.yml` and `destroy.yml`.
+
     .. important::
 
         This driver is alpha quality software.  Do not perform any additonal
-        tasks inside the `setup` playbook.  Molecule does not know about the
+        tasks inside the `create` playbook.  Molecule does not know about the
         Vagrant instances' configuration until the `converge` playbook is
         executed.
 
-        The `setup` playbook boots instances, then the instance data is written
-        to disk.  The instance data is then added to Molecule's Ansible
+        The `create` playbook boots instances, then the instance data is
+        written to disk.  The instance data is then added to Molecule's Ansible
         inventory on the next execution of `molecule.command.create`, which
         happens to be the `converge` playbook.
 
@@ -57,10 +60,31 @@ class Vagrant(base.Base):
 
         driver:
           name: vagrant
+        platforms:
+          - name: instance
+            instance_name: "{{ item.name }}"
+            instance_interfaces: "{{ item.interfaces | default(omit) }}"
+            instance_raw_config_args: "{{ item.instance_raw_config_args | default(omit) }}"
+            platform_box: "{{ item.box }}"
+            platform_box_version: "{{ item.box_version | default(omit) }}"
+            platform_box_url: "{{ item.box_url | default(omit) }}"
+            provider_name: "{{ molecule_yml.driver.provider.name }}"
+            provider_memory: "{{ item.memory | default(omit) }}"
+            provider_cpus: "{{ item.cpus | default(omit) }}"
+            provider_raw_config_args: "{{ item.raw_config_args | default(omit) }}"
 
     .. code-block:: bash
 
         $ sudo pip install python-vagrant
+
+    Change the provider passed to Vagrant.
+
+    .. code-block:: yaml
+
+        driver:
+          name: vagrant
+          provider:
+            name: parallels
 
     Change the options passed to the ssh client.
 
@@ -81,13 +105,13 @@ class Vagrant(base.Base):
     .. code-block:: yaml
 
         driver:
-          name: ec2
+          name: vagrant
           safe_files:
             - foo
             - .molecule/bar
 
     .. _`Vagrant`: https://www.vagrantup.com
-    """
+    """  # noqa
 
     def __init__(self, config):
         super(Vagrant, self).__init__(config)

@@ -51,6 +51,12 @@ instances are destroyed by Molecule.
 
 .. _`Ansible`: https://docs.ansible.com
 
+Azure
+^^^^^
+
+.. autoclass:: molecule.driver.azure.Azure()
+   :undoc-members:
+
 Delegated
 ^^^^^^^^^
 
@@ -60,7 +66,7 @@ Delegated
 Docker
 ^^^^^^
 
-.. autoclass:: molecule.driver.dockr.Dockr()
+.. autoclass:: molecule.driver.docker.Docker()
    :undoc-members:
 
 EC2
@@ -98,6 +104,8 @@ Vagrant
 
 .. autoclass:: molecule.driver.vagrant.Vagrant()
    :undoc-members:
+
+.. _molecule_vagrant_module:
 
 Molecule Vagrant Module
 ^^^^^^^^^^^^^^^^^^^^^^^

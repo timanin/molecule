@@ -20,10 +20,10 @@
 
 import click
 
-import molecule.command
 from molecule import config
 from molecule import logger
 from molecule import scenarios
+from molecule import util
 from molecule.command import base
 
 LOG = logger.get_logger(__name__)
@@ -45,11 +45,15 @@ class Test(base.Base):
 
     Targeting a specific driver:
 
-    >>> molecule converge --driver-name foo
+    >>> molecule test --driver-name foo
 
     Executing with `debug`:
 
     >>> molecule --debug test
+
+    Always destroy instances at the conclusion of a Molecule run:
+
+    >>> molecule test --destroy=always
     """
 
     def execute(self):
@@ -78,11 +82,23 @@ class Test(base.Base):
     '__all',
     default=False,
     help='Test all scenarios. Default is False.')
-def test(ctx, scenario_name, driver_name, __all):  # pragma: no cover
-    """ Test (destroy, create, converge, lint, verify, destroy). """
+@click.option(
+    '--destroy',
+    type=click.Choice(['always', 'never']),
+    default='never',
+    help=('The destroy strategy used at the conclusion of a '
+          'Molecule run (never).'))
+def test(ctx, scenario_name, driver_name, __all, destroy):  # pragma: no cover
+    """
+    Test (lint, destroy, dependency, syntax, create, prepare, converge,
+          idempotence, side_effect, verify, destroy).
+    """
+
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'destroy': destroy,
+        'subcommand': subcommand,
         'driver_name': driver_name,
     }
 
@@ -91,8 +107,16 @@ def test(ctx, scenario_name, driver_name, __all):  # pragma: no cover
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        for task in c.scenario.test_sequence:
-            command_module = getattr(molecule.command, task)
-            command = getattr(command_module, task.capitalize())
-            command(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        try:
+            for term in scenario.sequence:
+                base.execute_subcommand(scenario.config, term)
+        except SystemExit:
+            if destroy == 'always':
+                msg = ('An error occured during the test sequence.  '
+                       'Cleaning up.')
+                LOG.warn(msg)
+                base.execute_subcommand(scenario.config, 'destroy')
+                util.sysexit()
+            raise

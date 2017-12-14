@@ -19,7 +19,6 @@
 #  DEALINGS IN THE SOFTWARE.
 
 import os
-import shutil
 
 import pytest
 
@@ -72,13 +71,21 @@ def test_prune(base_instance):
     assert os.path.isfile(state_file)
     assert os.path.isfile(config_file)
     assert os.path.isfile(inventory_file)
-    assert os.path.isdir(baz_directory)
+    assert not os.path.isdir(baz_directory)
+
+
+def test_print_info(mocker, patched_logger_info, base_instance):
+    base_instance.print_info()
+    x = [
+        mocker.call("Scenario: 'default'"),
+        mocker.call("Action: 'extended_base'"),
+    ]
+    assert x == patched_logger_info.mock_calls
 
 
 def test_setup(mocker, patched_add_or_update_vars, patched_write_config,
                patched_manage_inventory, base_instance):
 
-    assert os.path.isdir(base_instance._config.scenario.ephemeral_directory)
     assert os.path.isdir(
         os.path.dirname(base_instance._config.provisioner.inventory_file))
 
@@ -86,12 +93,25 @@ def test_setup(mocker, patched_add_or_update_vars, patched_write_config,
     patched_write_config.assert_called_once_with()
 
 
-def test_setup_creates_ephemeral_directory(base_instance):
-    ephemeral_directory = base_instance._config.scenario.ephemeral_directory
-    shutil.rmtree(base_instance._config.scenario.ephemeral_directory)
-    base_instance._setup()
+def test_execute_subcommand(config_instance):
+    assert base.execute_subcommand(config_instance, 'list')
 
-    assert os.path.isdir(ephemeral_directory)
+
+def test_get_configs(config_instance):
+    molecule_file = config_instance.molecule_file
+    data = config_instance.config
+    util.write_file(molecule_file, util.safe_dump(data))
+
+    result = base.get_configs({}, {})
+    assert 1 == len(result)
+    assert isinstance(result, list)
+    assert isinstance(result[0], config.Config)
+
+
+def test_get_configs_calls_verify_configs(patched_verify_configs):
+    base.get_configs({}, {})
+
+    patched_verify_configs.assert_called_once_with([])
 
 
 def test_verify_configs(config_instance):
@@ -122,18 +142,5 @@ def test_verify_configs_raises_with_duplicate_configs(patched_logger_critical,
     patched_logger_critical.assert_called_once_with(msg)
 
 
-def test_get_configs(config_instance):
-    molecule_file = config_instance.molecule_file
-    data = config_instance.config
-    util.write_file(molecule_file, util.safe_dump(data))
-
-    result = base.get_configs({}, {})
-    assert 1 == len(result)
-    assert isinstance(result, list)
-    assert isinstance(result[0], config.Config)
-
-
-def test_get_configs_calls_verify_configs(patched_verify_configs):
-    base.get_configs({}, {})
-
-    patched_verify_configs.assert_called_once_with([])
+def test_get_subcommand():
+    assert 'test_base' == base._get_subcommand(__name__)

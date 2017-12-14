@@ -18,8 +18,6 @@
 #  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #  DEALINGS IN THE SOFTWARE.
 
-import os
-
 import click
 
 from molecule import config
@@ -60,23 +58,20 @@ class Destroy(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Provisioner: [{}]'.format(self._config.provisioner.name)
-        LOG.info(msg)
-        msg = 'Playbook: [{}]'.format(
-            os.path.basename(self._config.provisioner.playbooks.teardown))
-        LOG.info(msg)
-
+        self.print_info()
         self.prune()
 
-        if self._config.driver.delegated:
+        if self._config.command_args.get('destroy') == 'never':
+            msg = "Skipping, '--destroy=never' requested."
+            LOG.warn(msg)
+            return
+
+        if self._config.driver.delegated and not self._config.driver.managed:
             msg = 'Skipping, instances are delegated.'
             LOG.warn(msg)
             return
 
         self._config.provisioner.destroy()
-
         self._config.state.reset()
 
 
@@ -98,10 +93,11 @@ class Destroy(base.Base):
     default=False,
     help='Destroy all scenarios. Default is False.')
 def destroy(ctx, scenario_name, driver_name, __all):  # pragma: no cover
-    """ Destroy instances. """
+    """ Use the provisioner to destroy the instances. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
         'driver_name': driver_name,
     }
 
@@ -110,5 +106,7 @@ def destroy(ctx, scenario_name, driver_name, __all):  # pragma: no cover
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Destroy(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

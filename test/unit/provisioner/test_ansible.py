@@ -26,115 +26,8 @@ import pytest
 from molecule import config
 from molecule import util
 from molecule.provisioner import ansible
+from molecule.provisioner import ansible_playbooks
 from molecule.provisioner.lint import ansible_lint
-
-
-@pytest.fixture
-def namespace_instance(molecule_provisioner_section_data, config_instance):
-    return ansible.Namespace(config_instance)
-
-
-def test_get_ansible_playbook(namespace_instance):
-    x = os.path.join(namespace_instance._config.scenario.directory,
-                     'create.yml')
-    assert x == namespace_instance._config.provisioner.playbooks.setup
-
-
-@pytest.fixture
-def molecule_provisioner_driver_section_data():
-    return {
-        'provisioner': {
-            'name': 'ansible',
-            'playbooks': {
-                'docker': {
-                    'setup': 'docker-create.yml',
-                },
-                'setup': 'create.yml',
-            },
-        }
-    }
-
-
-def test_get_ansible_playbook_with_driver_key(
-        molecule_provisioner_driver_section_data, namespace_instance):
-    namespace_instance._config.merge_dicts(
-        namespace_instance._config.config,
-        molecule_provisioner_driver_section_data)
-
-    x = os.path.join(namespace_instance._config.scenario.directory,
-                     'docker-create.yml')
-    assert x == namespace_instance._config.provisioner.playbooks.setup
-
-
-@pytest.fixture
-def molecule_provisioner_playbook_none_section_data():
-    return {
-        'provisioner': {
-            'name': 'ansible',
-            'playbooks': {
-                'destruct': None,
-            },
-        }
-    }
-
-
-def test_get_ansible_playbook_when_playbook_none(
-        molecule_provisioner_playbook_none_section_data, namespace_instance):
-    namespace_instance._config.merge_dicts(
-        namespace_instance._config.config,
-        molecule_provisioner_playbook_none_section_data)
-
-    assert namespace_instance._config.provisioner.playbooks.destruct is None
-
-
-@pytest.fixture
-def molecule_provisioner_driver_playbook_none_section_data():
-    return {
-        'provisioner': {
-            'name': 'ansible',
-            'playbooks': {
-                'docker': {
-                    'destruct': None,
-                },
-                'destruct': None,
-            },
-        }
-    }
-
-
-def test_get_ansible_playbook_with_driver_key_when_playbook_none(
-        molecule_provisioner_driver_playbook_none_section_data,
-        namespace_instance):
-    namespace_instance._config.merge_dicts(
-        namespace_instance._config.config,
-        molecule_provisioner_driver_playbook_none_section_data)
-
-    assert namespace_instance._config.provisioner.playbooks.destruct is None
-
-
-@pytest.fixture
-def molecule_provisioner_driver_playbook_key_missing_section_data():
-    return {
-        'provisioner': {
-            'name': 'ansible',
-            'playbooks': {
-                'docker': {
-                    'setup': 'docker-create.yml',
-                },
-                'destruct': None,
-            },
-        }
-    }
-
-
-def test_get_ansible_playbook_with_driver_key_when_playbook_key_missing(
-        molecule_provisioner_driver_playbook_key_missing_section_data,
-        namespace_instance):
-    namespace_instance._config.merge_dicts(
-        namespace_instance._config.config,
-        molecule_provisioner_driver_playbook_key_missing_section_data)
-
-    assert namespace_instance._config.provisioner.playbooks.destruct is None
 
 
 @pytest.fixture
@@ -196,8 +89,9 @@ def test_config_private_member(ansible_instance):
     assert isinstance(ansible_instance._config, config.Config)
 
 
-def test_ns_private_member(ansible_instance):
-    assert isinstance(ansible_instance._ns, ansible.Namespace)
+def test_ansible_playbooks_private_member(ansible_instance):
+    assert isinstance(ansible_instance._ansible_playbooks,
+                      ansible_playbooks.AnsiblePlaybooks)
 
 
 def test_default_config_options_property(ansible_instance):
@@ -211,6 +105,7 @@ def test_default_config_options_property(ansible_instance):
         },
         'ssh_connection': {
             'scp_if_ssh': True,
+            'control_path': '%(directory)s/%%h-%%p-%%r',
         },
     }
 
@@ -281,6 +176,7 @@ def test_config_options_property(ansible_instance):
         },
         'ssh_connection': {
             'scp_if_ssh': True,
+            'control_path': '%(directory)s/%%h-%%p-%%r',
         },
     }
 
@@ -293,10 +189,18 @@ def test_options_property(ansible_instance):
     assert x == ansible_instance.options
 
 
+def test_options_property_does_not_merge(ansible_instance):
+    for subcommand in ['create', 'destroy']:
+        ansible_instance._config.command_args = {'subcommand': subcommand}
+
+        assert {} == ansible_instance.options
+
+
 def test_options_property_handles_cli_args(ansible_instance):
     ansible_instance._config.args = {'debug': True}
 
     assert ansible_instance.options['vvv']
+    assert ansible_instance.options['diff']
 
 
 def test_env_property(ansible_instance):
@@ -509,10 +413,10 @@ def test_config_file_property(ansible_instance):
     assert x == ansible_instance.config_file
 
 
-def test_playbooks_setup_property(ansible_instance):
+def test_playbooks_create_property(ansible_instance):
     x = os.path.join(ansible_instance._config.scenario.directory, 'create.yml')
 
-    assert x == ansible_instance.playbooks.setup
+    assert x == ansible_instance.playbooks.create
 
 
 def test_playbooks_converge_property(ansible_instance):
@@ -522,15 +426,15 @@ def test_playbooks_converge_property(ansible_instance):
     assert x == ansible_instance.playbooks.converge
 
 
-def test_playbooks_teardown_property(ansible_instance):
+def test_playbooks_destroy_property(ansible_instance):
     x = os.path.join(ansible_instance._config.scenario.directory,
                      'destroy.yml')
 
-    assert x == ansible_instance.playbooks.teardown
+    assert x == ansible_instance.playbooks.destroy
 
 
-def test_playbooks_destruct_property(ansible_instance):
-    assert ansible_instance.playbooks.destruct is None
+def test_playbooks_side_effect_property(ansible_instance):
+    assert ansible_instance.playbooks.side_effect is None
 
 
 def test_connection_options(ansible_instance):
@@ -542,9 +446,7 @@ def test_connection_options(ansible_instance):
 def test_check(ansible_instance, mocker, patched_ansible_playbook):
     ansible_instance.check()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
         ansible_instance._config.provisioner.playbooks.converge,
         ansible_instance._config, )
     patched_ansible_playbook.return_value.add_cli_arg.assert_called_once_with(
@@ -555,9 +457,7 @@ def test_check(ansible_instance, mocker, patched_ansible_playbook):
 def test_converge(ansible_instance, mocker, patched_ansible_playbook):
     result = ansible_instance.converge()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
         ansible_instance._config.provisioner.playbooks.converge,
         ansible_instance._config, )
     # NOTE(retr0h): This is not the true return type.  This is a mock return
@@ -571,9 +471,7 @@ def test_converge_with_playbook(ansible_instance, mocker,
                                 patched_ansible_playbook):
     result = ansible_instance.converge('playbook')
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
         'playbook',
         ansible_instance._config, )
     # NOTE(retr0h): This is not the true return type.  This is a mock return
@@ -586,32 +484,35 @@ def test_converge_with_playbook(ansible_instance, mocker,
 def test_destroy(ansible_instance, mocker, patched_ansible_playbook):
     ansible_instance.destroy()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
-        ansible_instance._config.provisioner.playbooks.teardown,
+        ansible_instance._config.provisioner.playbooks.destroy,
         ansible_instance._config, )
     patched_ansible_playbook.return_value.execute.assert_called_once_with()
 
 
-def test_destruct(ansible_instance, mocker, patched_ansible_playbook):
-    ansible_instance.destruct()
+def test_side_effect(ansible_instance, mocker, patched_ansible_playbook):
+    ansible_instance.side_effect()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
-        ansible_instance._config.provisioner.playbooks.destruct,
+        ansible_instance._config.provisioner.playbooks.side_effect,
         ansible_instance._config, )
     patched_ansible_playbook.return_value.execute.assert_called_once_with()
 
 
-def test_setup(ansible_instance, mocker, patched_ansible_playbook):
-    ansible_instance.setup()
+def test_create(ansible_instance, mocker, patched_ansible_playbook):
+    ansible_instance.create()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
-        ansible_instance._config.provisioner.playbooks.setup,
+        ansible_instance._config.provisioner.playbooks.create,
+        ansible_instance._config, )
+    patched_ansible_playbook.return_value.execute.assert_called_once_with()
+
+
+def test_prepare(ansible_instance, mocker, patched_ansible_playbook):
+    ansible_instance.prepare()
+
+    patched_ansible_playbook.assert_called_once_with(
+        ansible_instance._config.provisioner.playbooks.prepare,
         ansible_instance._config, )
     patched_ansible_playbook.return_value.execute.assert_called_once_with()
 
@@ -619,9 +520,7 @@ def test_setup(ansible_instance, mocker, patched_ansible_playbook):
 def test_syntax(ansible_instance, mocker, patched_ansible_playbook):
     ansible_instance.syntax()
 
-    inventory_file = ansible_instance._config.provisioner.inventory_file
     patched_ansible_playbook.assert_called_once_with(
-        inventory_file,
         ansible_instance._config.provisioner.playbooks.converge,
         ansible_instance._config, )
     patched_ansible_playbook.return_value.add_cli_arg.assert_called_once_with(
@@ -672,6 +571,31 @@ def test_add_or_update_vars(ansible_instance):
 
     host_vars_localhost = os.path.join(host_vars_directory, 'localhost')
     assert os.path.isfile(host_vars_localhost)
+
+    group_vars_directory = os.path.join(ephemeral_directory, 'group_vars')
+    group_vars_1 = os.path.join(group_vars_directory, 'example_group1')
+    group_vars_2 = os.path.join(group_vars_directory, 'example_group2')
+
+    assert os.path.isdir(group_vars_directory)
+    assert os.path.isfile(group_vars_1)
+    assert os.path.isfile(group_vars_2)
+
+
+def test_add_or_update_vars_without_host_vars(ansible_instance):
+    c = ansible_instance._config.config
+    c['provisioner']['inventory']['host_vars'] = {}
+    ephemeral_directory = ansible_instance._config.scenario.ephemeral_directory
+
+    host_vars_directory = os.path.join(ephemeral_directory, 'host_vars')
+    host_vars = os.path.join(host_vars_directory, 'instance-1')
+
+    ansible_instance._add_or_update_vars()
+
+    assert not os.path.isdir(host_vars_directory)
+    assert not os.path.isfile(host_vars)
+
+    host_vars_localhost = os.path.join(host_vars_directory, 'localhost')
+    assert not os.path.isfile(host_vars_localhost)
 
     group_vars_directory = os.path.join(ephemeral_directory, 'group_vars')
     group_vars_1 = os.path.join(group_vars_directory, 'example_group1')
@@ -925,6 +849,64 @@ def test_get_filter_plugin_directory(ansible_instance):
 
     assert x == parts[-5:]
 
-    #  def _get_abs_path(self, path):
-    #      return self._abs_path(
-    #          os.path.join(self._config.scenario.directory, path))
+
+def test_sanitize_env(mocker, ansible_instance, patched_logger_warn):
+    env = {
+        'ANSIBLE_BECOME_METHOD': 'sudo',
+        'ANSIBLE_BECOME': True,
+        'ANSIBLE_BECOME_USER': 'root',
+        'FOO': 'foo',
+        'BAR': 'bar',
+    }
+
+    x = {
+        'FOO': 'foo',
+        'BAR': 'bar',
+    }
+    assert x == ansible_instance._sanitize_env(env)
+
+    msg = "Disallowed user provided env option '{}'.  Removing."
+    x = [
+        mocker.call(msg.format('ANSIBLE_BECOME')),
+        mocker.call(msg.format('ANSIBLE_BECOME_METHOD')),
+        mocker.call(msg.format('ANSIBLE_BECOME_USER'))
+    ]
+    assert x == patched_logger_warn.mock_calls
+
+
+def test_sanitize_config_options(mocker, ansible_instance,
+                                 patched_logger_warn):
+    options = {
+        'privilege_escalation': {
+            'become_user': 'root',
+            'become': True,
+            'become_method': 'sudo'
+        },
+        'foo': 'bar',
+    }
+
+    x = {
+        'foo': 'bar',
+    }
+    assert x == ansible_instance._sanitize_config_options(options)
+
+    msg = "Disallowed user provided config option '{}'.  Removing.".format(
+        'privilege_escalation')
+    patched_logger_warn.assert_called_once_with(msg)
+
+
+def test_absolute_path_for(ansible_instance):
+    env = {'foo': 'foo:bar'}
+    x = ':'.join([
+        os.path.join(ansible_instance._config.scenario.directory, 'foo'),
+        os.path.join(ansible_instance._config.scenario.directory, 'bar'),
+    ])
+
+    x == ansible_instance._absolute_path_for(env, 'foo')
+
+
+def test_absolute_path_for_raises_with_missing_key(ansible_instance):
+    env = {'foo': 'foo:bar'}
+
+    with pytest.raises(KeyError):
+        ansible_instance._absolute_path_for(env, 'invalid')

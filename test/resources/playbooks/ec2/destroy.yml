@@ -1,24 +1,26 @@
 ---
-- name: Teardown
+- name: Destroy
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
   vars:
     molecule_file: "{{ lookup('env', 'MOLECULE_FILE') }}"
     molecule_instance_config: "{{ lookup('env', 'MOLECULE_INSTANCE_CONFIG') }}"
     molecule_yml: "{{ lookup('file', molecule_file) | molecule_from_yaml }}"
+
+    resource_group_name: molecule
   tasks:
     - block:
         - name: Populate instance config
           set_fact:
             instance_conf: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"
-            skip_instances: False
+            skip_instances: false
       rescue:
         - name: Populate instance config when file missing
           set_fact:
             instance_conf: {}
-            skip_instances: True
+            skip_instances: true
 
     - name: Destroy molecule instance(s)
       ec2:
@@ -27,6 +29,16 @@
       register: server
       with_items: "{{ instance_conf }}"
       when: not skip_instances
+      async: 7200
+      poll: 0
+
+    - name: Wait for instance(s) deletion to complete
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: ec2_jobs
+      until: ec2_jobs.finished
+      retries: 300
+      with_items: "{{ server.results }}"
 
     # Mandatory configuration for Molecule to function.
 

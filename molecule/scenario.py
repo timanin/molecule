@@ -21,6 +21,7 @@
 import os
 
 from molecule import logger
+from molecule import scenarios
 
 LOG = logger.get_logger(__name__)
 
@@ -40,20 +41,34 @@ class Scenario(object):
 
         scenario:
           name: default
+          create_sequence:
+            - create
+            - prepare
+          check_sequence:
+            - destroy
+            - create
+            - prepare
+            - converge
+            - check
+            - destroy
           converge_sequence:
             - create
+            - prepare
             - converge
-          test_sequence:
+          destroy_sequence:
             - destroy
-            - create
-            - converge
+          test_sequence:
             - lint
+            - destroy
+            - dependency
+            - syntax
+            - create
+            - prepare
+            - converge
+            - idempotence
+            - side_effect
             - verify
             - destroy
-
-    A good source of examples are the `scenario`_ functional tests.
-
-    .. _`scenario`: https://github.com/metacloud/molecule/tree/master/test/scenarios/driver
     """  # noqa
 
     def __init__(self, config):
@@ -63,28 +78,100 @@ class Scenario(object):
         :param config: An instance of a Molecule config.
         :return: None
         """
-        self._config = config
+        self.config = config
+        self._setup()
 
     @property
     def name(self):
-        return self._config.config['scenario']['name']
+        return self.config.config['scenario']['name']
 
     @property
     def directory(self):
-        return os.path.dirname(self._config.molecule_file)
+        return os.path.dirname(self.config.molecule_file)
 
     @property
     def ephemeral_directory(self):
-        return os.path.join(self.directory, '.molecule')
+        return ephemeral_directory(self.directory)
 
     @property
     def check_sequence(self):
-        return self._config.config['scenario']['check_sequence']
+        return self.config.config['scenario']['check_sequence']
 
     @property
     def converge_sequence(self):
-        return self._config.config['scenario']['converge_sequence']
+        return self.config.config['scenario']['converge_sequence']
+
+    @property
+    def create_sequence(self):
+        return self.config.config['scenario']['create_sequence']
+
+    @property
+    def dependency_sequence(self):
+        return ['dependency']
+
+    @property
+    def destroy_sequence(self):
+        return self.config.config['scenario']['destroy_sequence']
+
+    @property
+    def idempotence_sequence(self):
+        return ['idempotence']
+
+    @property
+    def lint_sequence(self):
+        return ['lint']
+
+    @property
+    def prepare_sequence(self):
+        return ['prepare']
+
+    @property
+    def side_effect_sequence(self):
+        return ['side_effect']
+
+    @property
+    def syntax_sequence(self):
+        return ['syntax']
 
     @property
     def test_sequence(self):
-        return self._config.config['scenario']['test_sequence']
+        return self.config.config['scenario']['test_sequence']
+
+    @property
+    def verify_sequence(self):
+        return ['verify']
+
+    @property
+    def sequence(self):
+        """
+        Select the sequence based on scenario and subcommand of the provided
+        scenario object and returns a list.
+
+        :param scenario: A scenario object.
+        :param skipped: An optional bool to include skipped scenarios.
+        :return: list
+        """
+        s = scenarios.Scenarios([self.config])
+        matrix = s._get_matrix()
+
+        try:
+            return matrix[self.name][self.config.subcommand]
+        except KeyError:
+            # TODO(retr0h): May change this handling in the future.
+            return []
+
+    def _setup(self):
+        """
+         Prepare the scenario for Molecule and returns None.
+
+         :return: None
+         """
+        if not os.path.isdir(self.ephemeral_directory):
+            os.mkdir(self.ephemeral_directory)
+
+
+def ephemeral_directory(path):
+    d = os.getenv('MOLECULE_EPHEMERAL_DIRECTORY')
+    if d:
+        return os.path.join(path, d)
+    return os.path.join(path, '.molecule')

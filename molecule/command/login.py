@@ -67,7 +67,8 @@ class Login(base.Base):
         :return: None
         """
         c = self._config
-        if not c.state.created and not c.driver.delegated:
+        if not c.state.created and (c.driver.delegated
+                                    and not c.driver.managed):
             msg = 'Instances not created.  Please create instances first.'
             util.sysexit_with_message(msg)
 
@@ -119,7 +120,7 @@ class Login(base.Base):
         signal.signal(signal.SIGWINCH, self._sigwinch_passthrough)
         self._pt.interact()
 
-    def _sigwinch_passthrough(self):  # pragma: no cover
+    def _sigwinch_passthrough(self, sig, data):  # pragma: no cover
         tiocgwinsz = 1074295912  # assume
         if 'TIOCGWINSZ' in dir(termios):
             tiocgwinsz = termios.TIOCGWINSZ
@@ -140,12 +141,13 @@ class Login(base.Base):
 def login(ctx, host, scenario_name):  # pragma: no cover
     """ Log in to one instance. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
         'host': host,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Login(c).execute()
+    for scenario in s.all:
+        base.execute_subcommand(scenario.config, subcommand)

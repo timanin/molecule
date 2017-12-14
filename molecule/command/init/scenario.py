@@ -35,6 +35,10 @@ class Scenario(base.Base):
     Initialize a new scenario:
 
     >>> molecule init scenario --scenario-name default --role-name foo
+
+    Initialize an existing role with Molecule:
+
+    >>> molecule init scenario --scenario-name default --role-name foo
     """
 
     def __init__(self, command_args):
@@ -51,7 +55,8 @@ class Scenario(base.Base):
         role_name = os.getcwd().split(os.sep)[-1]
         role_directory = util.abs_path(os.path.join(os.getcwd(), os.pardir))
 
-        LOG.info('Initializing new scenario {}...'.format(scenario_name))
+        msg = 'Initializing new scenario {}...'.format(scenario_name)
+        LOG.info(msg)
         molecule_directory = config.molecule_directory(
             os.path.join(role_directory, role_name))
         scenario_directory = os.path.join(molecule_directory, scenario_name)
@@ -70,13 +75,33 @@ class Scenario(base.Base):
         for template in templates:
             self._process_templates(template, self._command_args,
                                     scenario_base_directory)
-        self._process_templates('molecule', self._command_args,
-                                scenario_base_directory)
+        self._process_templates('molecule', self._command_args, role_directory)
 
         role_directory = os.path.join(role_directory, role_name)
         msg = 'Initialized scenario in {} successfully.'.format(
             scenario_directory)
         LOG.success(msg)
+
+
+def _role_exists(ctx, param, value):  # pragma: no cover
+    role_directory = os.path.join(os.pardir, value)
+    if not os.path.exists(role_directory):
+        msg = ("The role '{}' not found. "
+               'Please choose the proper role name.').format(value)
+        util.sysexit_with_message(msg)
+    return value
+
+
+def _default_scenario_exists(ctx, param, value):  # pragma: no cover
+    if value == 'default':
+        return value
+
+    default_scenario_directory = os.path.join('molecule', 'default')
+    if not os.path.exists(default_scenario_directory):
+        msg = ('The default scenario not found.  Please create a scenario '
+               "named 'default' first.")
+        util.sysexit_with_message(msg)
+    return value
 
 
 @click.command()
@@ -103,11 +128,17 @@ class Scenario(base.Base):
     default='ansible',
     help='Name of provisioner to initialize. (ansible)')
 @click.option(
-    '--role-name', '-r', required=True, help='Name of the role to create.')
+    '--role-name',
+    '-r',
+    required=True,
+    callback=_role_exists,
+    help='Name of the role to create.')
 @click.option(
     '--scenario-name',
     '-s',
+    default='default',
     required=True,
+    callback=_default_scenario_exists,
     help='Name of the scenario to create.')
 @click.option(
     '--verifier-name',

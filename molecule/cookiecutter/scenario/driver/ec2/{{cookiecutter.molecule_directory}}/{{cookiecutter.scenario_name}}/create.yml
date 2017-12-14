@@ -1,28 +1,39 @@
 ---
 {% raw -%}
-- name: Setup
+- name: Create
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
   vars:
     molecule_file: "{{ lookup('env', 'MOLECULE_FILE') }}"
     molecule_instance_config: "{{ lookup('env', 'MOLECULE_INSTANCE_CONFIG') }}"
-    molecule_yml: "{{ lookup('file', molecule_file) | from_yaml }}"
+    molecule_yml: "{{ lookup('file', molecule_file) | molecule_from_yaml }}"
 
+    ssh_user: ubuntu
     ssh_port: 22
+
     security_group_name: molecule
     security_group_description: Security group for testing Molecule
     security_group_rules:
-      - { proto: 'tcp', from_port: "{{ ssh_port }}", to_port: "{{ ssh_port }}",
-          cidr_ip: '0.0.0.0/0' }
-      - { proto: 'icmp', from_port: 8, to_port: -1, cidr_ip: '0.0.0.0/0' }
+      - proto: tcp
+        from_port: "{{ ssh_port }}"
+        to_port: "{{ ssh_port }}"
+        cidr_ip: '0.0.0.0/0'
+      - proto: icmp
+        from_port: 8
+        to_port: -1
+        cidr_ip: '0.0.0.0/0'
     security_group_rules_egress:
-      - { proto: -1, from_port: 0, to_port: 0, cidr_ip: '0.0.0.0/0' }
+      - proto: -1
+        from_port: 0
+        to_port: 0
+        cidr_ip: '0.0.0.0/0'
+
     keypair_name: molecule_key
     keypair_path: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/ssh_key"
   tasks:
-    - include: security_groups.yml
+    - include: security_group.yml
     - include: keypair.yml
 
     - name: Create molecule instance(s)
@@ -34,13 +45,23 @@
         group: "{{ security_group_name }}"
         instance_tags:
           instance: "{{ item.name }}"
-        wait: True
-        assign_public_ip: True
+        wait: true
+        assign_public_ip: true
         exact_count: 1
         count_tag:
           instance: "{{ item.name }}"
       register: server
       with_items: "{{ molecule_yml.platforms }}"
+      async: 7200
+      poll: 0
+
+    - name: Wait for instance(s) creation to complete
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: ec2_jobs
+      until: ec2_jobs.finished
+      retries: 300
+      with_items: "{{ server.results }}"
 
     # Mandatory configuration for Molecule to function.
 
@@ -48,12 +69,12 @@
       set_fact:
         instance_conf_dict: {
           'instance': "{{ item.instances[0].tags.instance }}",
-          'address': "{{ item.instances[0].public_dns_name }}",
-          'user': 'ubuntu',
+          'address': "{{ item.instances[0].public_ip }}",
+          'user': "{{ ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}",
           'instance_ids': "{{ item.instance_ids }}", }
-      with_items: "{{ server.results }}"
+      with_items: "{{ ec2_jobs.results }}"
       register: instance_config_dict
       when: server.changed | bool
 
@@ -76,5 +97,10 @@
         host: "{{ item.address }}"
         search_regex: SSH
         delay: 10
-      with_items: "{{ lookup('file', molecule_instance_config) | from_yaml }}"
+        timeout: 320
+      with_items: "{{ lookup('file', molecule_instance_config) | molecule_from_yaml }}"
+
+    - name: Wait for boot process to finish
+      pause:
+        minutes: 2
 {%- endraw %}

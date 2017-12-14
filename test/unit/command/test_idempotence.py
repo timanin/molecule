@@ -34,10 +34,10 @@ def test_execute(mocker, patched_logger_info, patched_ansible_converge,
                  patched_is_idempotent, patched_logger_success,
                  idempotence_instance):
     idempotence_instance.execute()
+
     x = [
-        mocker.call('Scenario: [default]'),
-        mocker.call('Provisioner: [ansible]'),
-        mocker.call('Idempotence Verification of Playbook: [playbook.yml]')
+        mocker.call("Scenario: 'default'"),
+        mocker.call("Action: 'idempotence'"),
     ]
     assert x == patched_logger_info.mock_calls
 

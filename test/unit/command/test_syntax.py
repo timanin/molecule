@@ -25,12 +25,11 @@ def test_execute(mocker, patched_logger_info, patched_ansible_syntax,
                  config_instance):
     s = syntax.Syntax(config_instance)
     s.execute()
-    x = [
-        mocker.call('Scenario: [default]'),
-        mocker.call('Provisioner: [ansible]'),
-        mocker.call('Syntax Verification of Playbook: [playbook.yml]')
-    ]
 
+    x = [
+        mocker.call("Scenario: 'default'"),
+        mocker.call("Action: 'syntax'"),
+    ]
     assert x == patched_logger_info.mock_calls
 
     patched_ansible_syntax.assert_called_once_with()

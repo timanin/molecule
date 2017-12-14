@@ -68,6 +68,18 @@ class Testinfra(base.Base):
           name: testinfra
           directory: /foo/bar/
 
+    Additional tests from another file or directory relative to the scenario
+    directory.
+
+    .. code-block:: yaml
+
+        verifier:
+          name: testinfra
+          additional_files_or_dirs:
+            - ../path/to/test_1
+            - ../path/to/test_2
+            - ../path/to/directory/
+
     .. _`Testinfra`: http://testinfra.readthedocs.io
     """
 
@@ -99,7 +111,14 @@ class Testinfra(base.Base):
 
     @property
     def default_env(self):
-        return self._config.merge_dicts(os.environ.copy(), self._config.env)
+        env = self._config.merge_dicts(os.environ.copy(), self._config.env)
+        env = self._config.merge_dicts(env, self._config.provisioner.env)
+
+        return env
+
+    @property
+    def additional_files_or_dirs(self):
+        return self._config.config['verifier']['additional_files_or_dirs']
 
     def bake(self):
         """
@@ -109,11 +128,12 @@ class Testinfra(base.Base):
         """
         options = self.options
         verbose_flag = util.verbose_flag(options)
+        args = verbose_flag + self.additional_files_or_dirs
 
-        self._testinfra_command = sh.testinfra.bake(
+        self._testinfra_command = sh.Command('py.test').bake(
             options,
             self._tests,
-            *verbose_flag,
+            *args,
             _cwd=self._config.scenario.directory,
             _env=self.env,
             _out=LOG.out,
@@ -121,11 +141,13 @@ class Testinfra(base.Base):
 
     def execute(self):
         if not self.enabled:
-            LOG.warn('Skipping, verifier is disabled.')
+            msg = 'Skipping, verifier is disabled.'
+            LOG.warn(msg)
             return
 
         if not len(self._tests) > 0:
-            LOG.warn('Skipping, no tests found.')
+            msg = 'Skipping, no tests found.'
+            LOG.warn(msg)
             return
 
         if self._testinfra_command is None:
@@ -137,7 +159,8 @@ class Testinfra(base.Base):
 
         try:
             util.run_command(self._testinfra_command, debug=self._config.debug)
-            LOG.success('Verifier completed successfully.')
+            msg = 'Verifier completed successfully.'
+            LOG.success(msg)
 
         except sh.ErrorReturnCode as e:
             util.sysexit(e.exit_code)

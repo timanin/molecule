@@ -18,11 +18,8 @@
 #  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #  DEALINGS IN THE SOFTWARE.
 
-import os
-
 import click
 
-import molecule.command
 from molecule import logger
 from molecule import scenarios
 from molecule.command import base
@@ -40,6 +37,13 @@ class Converge(base.Base):
 
     >>> molecule converge --scenario-name foo
 
+    Providing additional command line arguments to the `ansible-playbook`
+    command.  Use this option with care, as there is no sanitation or
+    validation of input.  Options passed on the CLI override options
+    provided in provisioner's `options` section of `molecule.yml`.
+
+    >>> molecule converge -- -vvv -tags foo,bar
+
     Executing with `debug`:
 
     >>> molecule --debug converge
@@ -52,14 +56,7 @@ class Converge(base.Base):
 
         :return: None
         """
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Provisioner: [{}]'.format(self._config.provisioner.name)
-        LOG.info(msg)
-        msg = 'Playbook: [{}]'.format(
-            os.path.basename(self._config.provisioner.playbooks.converge))
-        LOG.info(msg)
-
+        self.print_info()
         self._config.provisioner.converge()
         self._config.state.change_state('converged', True)
 
@@ -71,17 +68,22 @@ class Converge(base.Base):
     '-s',
     default='default',
     help='Name of the scenario to target. (default)')
-def converge(ctx, scenario_name):  # pragma: no cover
-    """ Use a provisioner to configure instances (create, converge). """
+@click.argument('ansible_args', nargs=-1, type=click.UNPROCESSED)
+def converge(ctx, scenario_name, ansible_args):  # pragma: no cover
+    """
+    Use the provisioner to configure instances (dependency, create, prepare
+    converge).
+    """
+
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
     }
 
     s = scenarios.Scenarios(
-        base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        for task in c.scenario.converge_sequence:
-            command_module = getattr(molecule.command, task)
-            command = getattr(command_module, task.capitalize())
-            command(c).execute()
+        base.get_configs(args, command_args, ansible_args), scenario_name)
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

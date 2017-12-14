@@ -27,57 +27,17 @@ from molecule import logger
 from molecule import util
 from molecule.provisioner import base
 from molecule.provisioner import ansible_playbook
+from molecule.provisioner import ansible_playbooks
 
 LOG = logger.get_logger(__name__)
-
-
-class Namespace(object):
-    """ A class to act as a module to namespace playbook properties. """
-
-    def __init__(self, config):
-        """
-        Initialize a new namespace class and returns None.
-
-        :param config: An instance of a Molecule config.
-        :return: None
-        """
-        self._config = config
-
-    @property
-    def setup(self):
-        return self._get_ansible_playbook('setup')
-
-    @property
-    def converge(self):
-        c = self._config.config
-
-        return self._config.provisioner.get_abs_path(
-            c['provisioner']['playbooks']['converge'])
-
-    @property
-    def teardown(self):
-        return self._get_ansible_playbook('teardown')
-
-    @property
-    def destruct(self):
-        return self._get_ansible_playbook('destruct')
-
-    def _get_ansible_playbook(self, section):
-        c = self._config.config
-        driver_dict = c['provisioner']['playbooks'].get(
-            self._config.driver.name)
-
-        if driver_dict:
-            try:
-                playbook = driver_dict[section]
-            except KeyError:
-                return
-        else:
-            playbook = c['provisioner']['playbooks'][section]
-
-        if playbook is not None:
-            return self._config.provisioner.get_abs_path(playbook)
-        return
+UNSAFE_ENV_KEYS = [
+    'ANSIBLE_BECOME',
+    'ANSIBLE_BECOME_METHOD',
+    'ANSIBLE_BECOME_USER',
+]
+UNSAFE_CONFIG_OPTIONS_KEYS = [
+    'privilege_escalation',
+]
 
 
 class Ansible(base.Base):
@@ -86,23 +46,27 @@ class Ansible(base.Base):
     supported.
 
     Molecule's provisioner manages the instances lifecycle.  However, the user
-    must provide the setup, teardown, and converge playbooks.  Molecule's
+    must provide the create, destroy, and converge playbooks.  Molecule's
     `init` subcommand will provide the necessary files for convenience.
 
     .. important::
 
-        Reserve the setup and teardown playbooks for provisioning.  Do not
+        Reserve the create and destroy playbooks for provisioning.  Do not
         attempt to gather facts or perform operations on the provisioned nodes
         inside these playbooks.  Due to the gymnastics necessary to sync state
         between Ansible and Molecule, it is best to perform these tasks in the
         converge playbook.
 
         It is the developers responsiblity to properly map the modules's fact
-        data into the instance_conf_dict fact in the setup playbook.  This
+        data into the instance_conf_dict fact in the create playbook.  This
         allows Molecule to properly configure Ansible inventory.
 
     Additional options can be passed to `ansible-playbook` through the options
     dict.  Any option set in this section will override the defaults.
+
+    .. important::
+
+        Options do not affect the create and destroy actions.
 
     .. code-block:: yaml
 
@@ -111,9 +75,9 @@ class Ansible(base.Base):
           options:
             vvv: True
           playbooks:
-            setup: create.yml
+            create: create.yml
             converge: playbook.yml
-            teardown: destroy.yml
+            destroy: destroy.yml
 
     Share playbooks between roles.
 
@@ -122,19 +86,19 @@ class Ansible(base.Base):
         provisioner:
           name: ansible
           playbooks:
-            setup: ../default/create.yml
-            teardown: ../default/destroy.yml
+            create: ../default/create.yml
+            destroy: ../default/destroy.yml
             converge: playbook.yml
 
     Multiple driver playbooks.  In some situations a developer may choose to
     test the same role against different backends.  Molecule will choose driver
-    specific setup/teardown playbooks, if the determined driver has a key in
+    specific create/destroy playbooks, if the determined driver has a key in
     the playbooks section of the provisioner's dict.
 
     .. important::
 
         If the determined driver has a key in the playbooks dict, Molecule will
-        use this dict to resolve all provisioning playbooks (setup/teardown).
+        use this dict to resolve all provisioning playbooks (create/destroy).
 
     .. code-block:: yaml
 
@@ -142,10 +106,10 @@ class Ansible(base.Base):
           name: ansible
           playbooks:
             docker:
-              setup: create.yml
-              teardown: destroy.yml
-            setup: create.yml
-            teardown: destroy.yml
+              create: create.yml
+              destroy: destroy.yml
+            create: create.yml
+            destroy: destroy.yml
             converge: playbook.yml
 
     .. important::
@@ -153,7 +117,7 @@ class Ansible(base.Base):
         Paths in this section are converted to absolute paths, where the
         relative parent is the $scenario_directory.
 
-    The destruct playbook executes actions which are destructive to the
+    The side effect playbook executes actions which produce side effects to the
     instances(s).  Intended to test HA failover scenarios or the like.  It is
     not enabled by default.  Add the following to the provisioner's `playbooks`
     section to enable.
@@ -163,11 +127,25 @@ class Ansible(base.Base):
         provisioner:
           name: ansible
           playbooks:
-            destruct: destruct.yml
+            side_effect: side_effect.yml
 
     .. important::
 
         This is feature should be considered experimental.
+
+    The prepare playbook executes actions which bring the system to a given
+    state prior to converge.  It is executed after create, and only once for
+    the duration of the instances life.
+
+    This can be used to bring instances into a particular state, prior to
+    testing.
+
+    .. code-block:: yaml
+
+        provisioner:
+          name: ansible
+          playbooks:
+            prepare: prepare.yml
 
     Environment variables.  Molecule does it's best to handle common Ansible
     paths.  The defaults are as follows.
@@ -272,7 +250,7 @@ class Ansible(base.Base):
         :return: None
         """
         super(Ansible, self).__init__(config)
-        self._ns = Namespace(config)
+        self._ansible_playbooks = ansible_playbooks.AnsiblePlaybooks(config)
 
     @property
     def default_config_options(self):
@@ -294,6 +272,7 @@ class Ansible(base.Base):
             },
             'ssh_connection': {
                 'scp_if_ssh': True,
+                'control_path': '%(directory)s/%%h-%%p-%%r',
             },
         }
 
@@ -302,6 +281,7 @@ class Ansible(base.Base):
         d = {}
         if self._config.debug:
             d['vvv'] = True
+            d['diff'] = True
 
         return d
 
@@ -350,12 +330,15 @@ class Ansible(base.Base):
 
     @property
     def config_options(self):
-        return self._config.merge_dicts(
-            self.default_config_options,
-            self._config.config['provisioner']['config_options'])
+        options = self._sanitize_config_options(
+            self._config.config['provisioner']['config_options'].copy())
+
+        return self._config.merge_dicts(self.default_config_options, options)
 
     @property
     def options(self):
+        if self._config.subcommand in ['create', 'destroy']:
+            return self.default_options
         return self._config.merge_dicts(
             self.default_options,
             self._config.config['provisioner']['options'])
@@ -363,26 +346,27 @@ class Ansible(base.Base):
     @property
     def env(self):
         default_env = self.default_env
-        env = self._config.config['provisioner']['env'].copy()
+        env = self._sanitize_env(
+            self._config.config['provisioner']['env'].copy())
 
         roles_path = default_env['ANSIBLE_ROLES_PATH']
         library_path = default_env['ANSIBLE_LIBRARY']
         filter_plugins_path = default_env['ANSIBLE_FILTER_PLUGINS']
 
         try:
-            path = self.get_abs_path(env['ANSIBLE_ROLES_PATH'])
+            path = self._absolute_path_for(env, 'ANSIBLE_ROLES_PATH')
             roles_path = '{}:{}'.format(roles_path, path)
         except KeyError:
             pass
 
         try:
-            path = self.get_abs_path(env['ANSIBLE_LIBRARY'])
+            path = self._absolute_path_for(env, 'ANSIBLE_LIBRARY')
             library_path = '{}:{}'.format(library_path, path)
         except KeyError:
             pass
 
         try:
-            path = self.get_abs_path(env['ANSIBLE_FILTER_PLUGINS'])
+            path = self._absolute_path_for(env, 'ANSIBLE_FILTER_PLUGINS')
             filter_plugins_path = '{}:{}'.format(filter_plugins_path, path)
         except KeyError:
             pass
@@ -459,7 +443,7 @@ class Ansible(base.Base):
 
     @property
     def playbooks(self):
-        return self._ns
+        return self._ansible_playbooks
 
     def connection_options(self, instance_name):
         d = self._config.driver.ansible_connection_options(instance_name)
@@ -502,27 +486,37 @@ class Ansible(base.Base):
 
         :return: None
         """
-        pb = self._get_ansible_playbook(self.playbooks.teardown)
+        pb = self._get_ansible_playbook(self.playbooks.destroy)
         pb.execute()
 
-    def destruct(self):
+    def side_effect(self):
         """
-        Executes `ansible-playbook` against the destruct playbook and returns
+        Executes `ansible-playbook` against the side_effect playbook and
+        returns None.
+
+        :return: None
+        """
+        pb = self._get_ansible_playbook(self.playbooks.side_effect)
+        pb.execute()
+
+    def create(self):
+        """
+        Executes `ansible-playbook` against the create playbook and returns
         None.
 
         :return: None
         """
-        pb = self._get_ansible_playbook(self.playbooks.destruct)
+        pb = self._get_ansible_playbook(self.playbooks.create)
         pb.execute()
 
-    def setup(self):
+    def prepare(self):
         """
-        Executes `ansible-playbook` against the setup playbook and returns
+        Executes `ansible-playbook` against the prepare playbook and returns
         None.
 
         :return: None
         """
-        pb = self._get_ansible_playbook(self.playbooks.setup)
+        pb = self._get_ansible_playbook(self.playbooks.prepare)
         pb.execute()
 
     def syntax(self):
@@ -585,20 +579,19 @@ class Ansible(base.Base):
             elif target == 'group_vars':
                 vars_target = self.group_vars
 
-            if not vars_target:
-                return
+            if vars_target:
+                ephemeral_directory = self._config.scenario.ephemeral_directory
+                target_vars_directory = os.path.join(ephemeral_directory,
+                                                     target)
 
-            ephemeral_directory = self._config.scenario.ephemeral_directory
-            target_vars_directory = os.path.join(ephemeral_directory, target)
+                if not os.path.isdir(util.abs_path(target_vars_directory)):
+                    os.mkdir(util.abs_path(target_vars_directory))
 
-            if not os.path.isdir(util.abs_path(target_vars_directory)):
-                os.mkdir(util.abs_path(target_vars_directory))
-
-            for target in vars_target.keys():
-                target_var_content = vars_target[target]
-                path = os.path.join(
-                    util.abs_path(target_vars_directory), target)
-                util.write_file(path, util.safe_dump(target_var_content))
+                for target in vars_target.keys():
+                    target_var_content = vars_target[target]
+                    path = os.path.join(
+                        util.abs_path(target_vars_directory), target)
+                    util.write_file(path, util.safe_dump(target_var_content))
 
     def _write_inventory(self):
         """
@@ -657,8 +650,8 @@ class Ansible(base.Base):
         :param kwargs: An optional keyword arguments.
         :return: object
         """
-        return ansible_playbook.AnsiblePlaybook(self.inventory_file, playbook,
-                                                self._config, **kwargs)
+        return ansible_playbook.AnsiblePlaybook(playbook, self._config,
+                                                **kwargs)
 
     def _verify_inventory(self):
         """
@@ -712,3 +705,26 @@ class Ansible(base.Base):
     def _get_filter_plugin_directory(self):
         return util.abs_path(
             os.path.join(self._get_plugin_directory(), 'filters'))
+
+    def _sanitize_env(self, env):
+        for unsafe_env in UNSAFE_ENV_KEYS:
+            if env.get(unsafe_env):
+                msg = ("Disallowed user provided env option '{}'.  "
+                       'Removing.').format(unsafe_env)
+                LOG.warn(msg)
+                del env[unsafe_env]
+
+        return env
+
+    def _sanitize_config_options(self, config_options):
+        for unsafe_option in UNSAFE_CONFIG_OPTIONS_KEYS:
+            if config_options.get(unsafe_option):
+                msg = ("Disallowed user provided config option '{}'.  "
+                       'Removing.').format(unsafe_option)
+                LOG.warn(msg)
+                del config_options[unsafe_option]
+
+        return config_options
+
+    def _absolute_path_for(self, env, key):
+        return ':'.join([self.get_abs_path(p) for p in env[key].split(':')])

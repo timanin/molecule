@@ -43,6 +43,7 @@ class AnsibleGalaxy(base.Base):
           options:
             ignore-certs: True
             ignore-errors: True
+            role-file: requirements.yml
 
 
     The dependency manager can be disabled by setting `enabled` to False.
@@ -108,11 +109,13 @@ class AnsibleGalaxy(base.Base):
 
     def execute(self):
         if not self.enabled:
-            LOG.warn('Skipping, dependency is disabled.')
+            msg = 'Skipping, dependency is disabled.'
+            LOG.warn(msg)
             return
 
         if not self._has_requirements_file():
-            LOG.warn('Skipping, missing the requirements file.')
+            msg = 'Skipping, missing the requirements file.'
+            LOG.warn(msg)
             return
 
         if self._ansible_galaxy_command is None:
@@ -122,7 +125,8 @@ class AnsibleGalaxy(base.Base):
         try:
             util.run_command(
                 self._ansible_galaxy_command, debug=self._config.debug)
-            LOG.success('Dependency completed successfully.')
+            msg = 'Dependency completed successfully.'
+            LOG.success(msg)
         except sh.ErrorReturnCode as e:
             util.sysexit(e.exit_code)
 

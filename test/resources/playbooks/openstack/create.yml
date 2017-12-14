@@ -1,35 +1,42 @@
 ---
-- name: Setup
+- name: Create
   hosts: localhost
   connection: local
-  gather_facts: False
+  gather_facts: false
   no_log: "{{ not lookup('env', 'MOLECULE_DEBUG') | bool }}"
   vars:
     molecule_file: "{{ lookup('env', 'MOLECULE_FILE') }}"
     molecule_instance_config: "{{ lookup('env', 'MOLECULE_INSTANCE_CONFIG') }}"
     molecule_yml: "{{ lookup('file', molecule_file) | molecule_from_yaml }}"
 
+    ssh_user: cloud-user
     ssh_port: 22
 
     security_group_name: molecule
     security_group_description: "Security group for testing Molecule"
     security_group_rules:
-      - { proto: 'tcp', port: "{{ ssh_port }}", cidr: '0.0.0.0/0' }
-      - { proto: 'icmp', port: -1, cidr: '0.0.0.0/0' }
-      - { ethertype: 'IPv4', group: "{{ security_group.id }}" }
-      - { ethertype: 'IPv6', group: "{{ security_group.id }}" }
+      - proto: tcp
+        port: "{{ ssh_port }}"
+        cidr: '0.0.0.0/0'
+      - proto: icmp
+        port: -1
+        cidr: '0.0.0.0/0'
+      - ethertype: IPv4
+        group: "{{ security_group.id }}"
+      - ethertype: IPv6
+        group: "{{ security_group.id }}"
 
     neutron:
       networks:
         - name: molecule
-          external: False
-          shared: False
+          external: false
+          shared: false
       subnets:
         - name: molecule
           network_name: molecule
           ip_version: 4
           cidr: 192.168.1.0/24
-          enable_dhcp: True
+          enable_dhcp: true
           dns_nameservers:
             - 8.8.8.8
             - 8.8.4.4
@@ -46,7 +53,7 @@
       image: Ubuntu-16.04
       flavor: NO-Nano
   tasks:
-    - include: security_groups.yml
+    - include: security_group.yml
     - include: keypair.yml
     - include: neutron.yml
 
@@ -62,6 +69,16 @@
           - net-id: "{{ openstack_networks[0]['id'] }}"
       register: server
       with_items: "{{ molecule_yml.platforms }}"
+      async: 7200
+      poll: 0
+
+    - name: Wait for instance(s) creation to complete
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      register: os_jobs
+      until: os_jobs.finished
+      retries: 300
+      with_items: "{{ server.results }}"
 
     # Mandatory configuration for Molecule to function.
 
@@ -70,10 +87,10 @@
         instance_conf_dict: {
           'instance': "{{ item.openstack.name }}",
           'address': "{{ item.openstack.accessIPv4 }}",
-          'user': 'cloud-user',
+          'user': "{{ ssh_user }}",
           'port': "{{ ssh_port }}",
           'identity_file': "{{ keypair_path }}", }
-      with_items: "{{ server.results }}"
+      with_items: "{{ os_jobs.results }}"
       register: instance_config_dict
       when: server.changed | bool
 

@@ -73,17 +73,17 @@ class List(base.Base):
 def list(ctx, scenario_name, format):  # pragma: no cover
     """ Lists status of instances. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
         'format': format,
     }
 
     statuses = []
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        l = List(c)
-        statuses.extend(l.execute())
+    for scenario in s:
+        statuses.extend(base.execute_subcommand(scenario.config, subcommand))
 
     headers = [util.title(name) for name in status.get_status()._fields]
     if format == 'simple' or format == 'plain':

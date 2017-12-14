@@ -23,9 +23,12 @@ import collections
 import glob
 import os
 
+import molecule.command
 from molecule import config
+from molecule import logger
 from molecule import util
 
+LOG = logger.get_logger(__name__)
 MOLECULE_GLOB = 'molecule/*/molecule.yml'
 
 
@@ -67,17 +70,57 @@ class Base(object):
             if all(sf not in f for sf in safe_files):
                 os.remove(f)
 
+        # Remove empty directories.
+        for dirpath, dirs, files in os.walk(
+                self._config.scenario.ephemeral_directory):
+            if not dirs and not files:
+                os.rmdir(dirpath)
+
+    def print_info(self):
+        msg = "Scenario: '{}'".format(self._config.scenario.name)
+        LOG.info(msg)
+        msg = "Action: '{}'".format(util.underscore(self.__class__.__name__))
+        LOG.info(msg)
+
     def _setup(self):
         """
-        Prepare the system for Molecule and returns None.
+        Prepare Molecule's provisioner and returns None.
 
         :return: None
         """
-        if not os.path.isdir(self._config.scenario.ephemeral_directory):
-            os.mkdir(self._config.scenario.ephemeral_directory)
-
         self._config.provisioner.write_config()
         self._config.provisioner.manage_inventory()
+
+
+def execute_subcommand(config, subcommand):
+    command_module = getattr(molecule.command, subcommand)
+    command = getattr(command_module, util.camelize(subcommand))
+
+    return command(config).execute()
+
+
+def get_configs(args, command_args, ansible_args=()):
+    """
+    Glob the current directory for Molecule config files, instantiate config
+    objects, and returns a list.
+
+    :param args: A dict of options, arguments and commands from the CLI.
+    :param command_args: A dict of options passed to the subcommand from
+     the CLI.
+    :param ansible_args: An optional tuple of arguments provided to the
+     `ansible-playbook` command.
+    :return: list
+    """
+    configs = [
+        config.Config(
+            molecule_file=util.abs_path(c),
+            args=args,
+            command_args=command_args,
+            ansible_args=ansible_args, ) for c in glob.glob(MOLECULE_GLOB)
+    ]
+    _verify_configs(configs)
+
+    return configs
 
 
 def _verify_configs(configs):
@@ -100,22 +143,5 @@ def _verify_configs(configs):
         util.sysexit_with_message(msg)
 
 
-def get_configs(args, command_args):
-    """
-    Glob the current directory for Molecule config files, instantiate config
-    objects, and returns a list.
-
-    :param args: A dict of options, arguments and commands from the CLI.
-    :param command_args: A dict of options passed to the subcommand from
-     the CLI.
-    :return: list
-    """
-    configs = [
-        config.Config(
-            molecule_file=util.abs_path(c),
-            args=args,
-            command_args=command_args) for c in glob.glob(MOLECULE_GLOB)
-    ]
-    _verify_configs(configs)
-
-    return configs
+def _get_subcommand(string):
+    return string.split('.')[-1]

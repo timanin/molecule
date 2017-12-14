@@ -3,6 +3,8 @@ dependency:
   name: galaxy
 driver:
   name: vagrant
+  provider:
+    name: virtualbox
 lint:
   name: yamllint
   options:
@@ -11,14 +13,14 @@ platforms:
   - name: instance
     box: debian/jessie64
     interfaces:
-      - auto_config: True
+      - auto_config: true
         network_name: private_network
         type: dhcp
 provisioner:
   name: ansible
   playbooks:
-    setup: ../../../../../resources/playbooks/vagrant/create.yml
-    teardown: ../../../../../resources/playbooks/vagrant/destroy.yml
+    create: ../../../../../resources/playbooks/vagrant/create.yml
+    destroy: ../../../../../resources/playbooks/vagrant/destroy.yml
   env:
     ANSIBLE_ROLES_PATH: ../../../../../resources/roles/
   lint:

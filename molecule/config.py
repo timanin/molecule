@@ -30,8 +30,9 @@ from molecule import state
 from molecule import util
 from molecule.dependency import ansible_galaxy
 from molecule.dependency import gilt
+from molecule.driver import azure
 from molecule.driver import delegated
-from molecule.driver import dockr
+from molecule.driver import docker
 from molecule.driver import ec2
 from molecule.driver import gce
 from molecule.driver import lxc
@@ -46,7 +47,6 @@ from molecule.verifier import testinfra
 
 LOG = logger.get_logger(__name__)
 MOLECULE_DIRECTORY = 'molecule'
-MOLECULE_EPHEMERAL_DIRECTORY = '.molecule'
 MOLECULE_FILE = 'molecule.yml'
 MERGE_STRATEGY = anyconfig.MS_DICTS
 
@@ -66,20 +66,28 @@ class Config(object):
     :ref:`root_scenario`, and State_ references.
     """
 
-    def __init__(self, molecule_file, args={}, command_args={}):
+    def __init__(self,
+                 molecule_file,
+                 args={},
+                 command_args={},
+                 ansible_args=()):
         """
         Initialize a new config class and returns None.
 
         :param molecule_file: A string containing the path to the Molecule file
          to be parsed.
-        :param args: A dict of options, arguments and commands from the CLI.
-        :param command_args: A dict of options passed to the subcommand from
+        :param args: An optional dict of options, arguments and commands from
          the CLI.
+        :param command_args: An optional dict of options passed to the
+         subcommand from the CLI.
+        :param ansible_args: An optional tuple of arguments provided to the
+         `ansible-playbook` command.
         :returns: None
         """
         self.molecule_file = molecule_file
         self.args = args
         self.command_args = command_args
+        self.ansible_args = ansible_args
         self.config = self._combine()
 
     @property
@@ -87,8 +95,8 @@ class Config(object):
         return self.args.get('debug', False)
 
     @property
-    def ephemeral_directory(self):
-        return os.path.join(self.scenario.directory, '.molecule')
+    def subcommand(self):
+        return self.command_args['subcommand']
 
     @property
     def project_directory(self):
@@ -113,10 +121,12 @@ class Config(object):
         driver_name = self._get_driver_name()
         driver = None
 
-        if driver_name == 'delegated':
+        if driver_name == 'azure':
+            driver = azure.Azure(self)
+        elif driver_name == 'delegated':
             driver = delegated.Delegated(self)
         elif driver_name == 'docker':
-            driver = dockr.Dockr(self)
+            driver = docker.Docker(self)
         elif driver_name == 'ec2':
             driver = ec2.Ec2(self)
         elif driver_name == 'gce':
@@ -234,8 +244,14 @@ class Config(object):
 
         base = self._get_defaults()
         with util.open_file(self.molecule_file) as stream:
-            interpolated_config = i.interpolate(stream.read())
-            base = self.merge_dicts(base, util.safe_load(interpolated_config))
+            try:
+                interpolated_config = i.interpolate(stream.read())
+                base = self.merge_dicts(base,
+                                        util.safe_load(interpolated_config))
+            except interpolation.InvalidInterpolation as e:
+                msg = ("parsing config file '{}'.\n\n"
+                       '{}\n{}'.format(self.molecule_file, e.place, e.string))
+                util.sysexit_with_message(msg)
 
         schema.validate(base)
 
@@ -251,7 +267,12 @@ class Config(object):
             },
             'driver': {
                 'name': 'docker',
-                'options': {},
+                'provider': {
+                    'name': None
+                },
+                'options': {
+                    'managed': True,
+                },
                 'ssh_connection_options': [],
                 'safe_files': [],
             },
@@ -275,10 +296,11 @@ class Config(object):
                 },
                 'children': {},
                 'playbooks': {
-                    'setup': 'create.yml',
+                    'create': 'create.yml',
                     'converge': 'playbook.yml',
-                    'teardown': 'destroy.yml',
-                    'destruct': None,
+                    'destroy': 'destroy.yml',
+                    'prepare': 'prepare.yml',
+                    'side_effect': None,
                 },
                 'lint': {
                     'name': 'ansible-lint',
@@ -290,12 +312,40 @@ class Config(object):
             'scenario': {
                 'name':
                 'default',
-                'check_sequence':
-                ['destroy', 'create', 'converge', 'check', 'destroy'],
-                'converge_sequence': ['create', 'converge'],
+                'check_sequence': [
+                    'destroy',
+                    'dependency',
+                    'create',
+                    'prepare',
+                    'converge',
+                    'check',
+                    'destroy',
+                ],
+                'converge_sequence': [
+                    'dependency',
+                    'create',
+                    'prepare',
+                    'converge',
+                ],
+                'create_sequence': [
+                    'create',
+                    'prepare',
+                ],
+                'destroy_sequence': [
+                    'destroy',
+                ],
                 'test_sequence': [
-                    'destroy', 'dependency', 'syntax', 'create', 'converge',
-                    'idempotence', 'lint', 'destruct', 'verify', 'destroy'
+                    'lint',
+                    'destroy',
+                    'dependency',
+                    'syntax',
+                    'create',
+                    'prepare',
+                    'converge',
+                    'idempotence',
+                    'side_effect',
+                    'verify',
+                    'destroy',
                 ],
             },
             'verifier': {
@@ -304,6 +354,7 @@ class Config(object):
                 'directory': 'tests',
                 'options': {},
                 'env': {},
+                'additional_files_or_dirs': [],
                 'lint': {
                     'name': 'flake8',
                     'enabled': True,
@@ -363,8 +414,9 @@ def molecule_file(path):
 
 def molecule_drivers():
     return [
+        azure.Azure(None).name,
         delegated.Delegated(None).name,
-        dockr.Dockr(None).name,
+        docker.Docker(None).name,
         ec2.Ec2(None).name,
         gce.Gce(None).name,
         lxc.Lxc(None).name,

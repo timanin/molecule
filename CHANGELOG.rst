@@ -2,6 +2,90 @@
 History
 *******
 
+Molecule follows `Semantic Versioning`_.  Therefore versioning will be much
+different than previous versions of Molecule.
+
+It will be safe to pin to MINOR versions of Molecule.  MINOR will add
+functionality in a backwards-compatible manner.
+
+.. _`Semantic Versioning`: http://semver.org
+
+2.5
+===
+
+* Ignore provisioner.options when in the create/destroy provisioner.
+* Switched Docker driver to a portable default command.
+* Parallel instance management.
+* Added Azure driver.
+* Corrected testinfra SystemInfo tests.
+* Execute `dependency` on check and converge sequence.
+* Updated Docs usage of dependency role-file instead of requirements_file.
+* Cleaned up YAML syntax.
+* Execute linting first in test sequence.
+* Support expose_ports option in docker driver.
+
+2.4
+===
+
+* Corrected missing code block inside documentation.
+* Bump ansible-lint version.
+* Added yamlint to init scenario.
+* Correct env path qualification.
+* Add sudo package to Fedora section of Dockerfile template.
+* Correct ANSIBLE_ROLES_PATH path component.
+* Allow re-run of prepare playbook. 
+
+2.3
+===
+
+* Report friendly error message when interpolation fails.
+* Added a new line after printing matrix.
+* Added molecule header to generated Dockerfiles.
+* Check supported python and ansible versions when executing Molecule.
+* Sanitize user provided config options.
+* Sanitize user provided env options.
+* Added shell friendly env output
+
+2.2.1
+=====
+
+* Ensure setup is run for prepare to correct ssh connection failures.
+
+2.2
+===
+
+* Ability to execute a prepare playbook post create.
+* Log deprecation warning when missing prepare.yml.
+* Support Ansible 2.4.
+* Revert "Add support import data from original ansible.cfg".
+* Changed testinfra command to py.test.
+
+2.1
+===
+
+* Add a destroy strategy to the `test` action.
+* Delegated driver may or may not manage instances.
+
+2.0.4
+=====
+
+* Fix Dockerfile for Fedora.
+
+2.0.3
+=====
+
+* Generate host/group vars when host vars missing.
+
+2.0.2
+=====
+
+* Pass the provisioner's env to the verifier.
+
+2.0.1
+=====
+
+* Corrected init scenario validation.
+
 2.0
 ===
 
@@ -18,10 +102,6 @@ Important Changes
 * Promoted `Goss Verifier`_ to a supported verifier.
 * Added `GCE Driver`_, `EC2 Driver`_, `LXC Driver`_, `LXD Driver`_ , and
   `OpenStack Driver`_ native Molecule drivers.
-* Molecule will follow `Semantic Versioning`_.  Therefore versioning will be
-  much different than previous versions of Molecule.  It will be safe to pin
-  to MINOR versions of Molecule.  MINOR will add functionality in a
-  backwards-compatible manner.
 
 Breaking Changes
 ----------------
@@ -43,10 +123,14 @@ Breaking Changes
 .. _`LXD Driver`: http://molecule.readthedocs.io/en/latest/configuration.html#lxd
 .. _`OpenStack Driver`: http://molecule.readthedocs.io/en/latest/configuration.html#openstack
 .. _`Porting Guide`: http://molecule.readthedocs.io/en/latest/porting.html
-.. _`Semantic Versioning`: http://semver.org
 .. _`Scenarios`: http://molecule.readthedocs.io/en/latest/configuration.html#scenario
 .. _`Delegated Driver`: http://molecule.readthedocs.io/en/latest/configuration.html#delegated
 .. _`Yamllint`: https://github.com/adrienverge/yamllint
+
+1.25.1
+======
+
+* Update ansible-lint for Ansible 2.4 compatibility.
 
 1.25
 ====

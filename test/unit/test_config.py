@@ -26,10 +26,12 @@ from molecule import config
 from molecule import platforms
 from molecule import scenario
 from molecule import state
+from molecule import util
 from molecule.dependency import ansible_galaxy
 from molecule.dependency import gilt
+from molecule.driver import azure
 from molecule.driver import delegated
-from molecule.driver import dockr
+from molecule.driver import docker
 from molecule.driver import ec2
 from molecule.driver import gce
 from molecule.driver import lxc
@@ -51,17 +53,17 @@ def test_args_member(config_instance):
 
 
 def test_command_args_member(config_instance):
-    assert {} == config_instance.command_args
+    x = {'subcommand': 'test'}
+
+    assert x == config_instance.command_args
 
 
 def test_debug_property(config_instance):
     assert not config_instance.debug
 
 
-def test_ephemeral_directory_property(config_instance):
-    x = os.path.join(pytest.helpers.molecule_ephemeral_directory())
-
-    assert x == config_instance.ephemeral_directory
+def test_subcommand_property(config_instance):
+    assert 'test' == config_instance.subcommand
 
 
 def test_project_directory_property(config_instance):
@@ -117,16 +119,33 @@ def test_dependency_property_raises(molecule_dependency_invalid_section_data,
     patched_logger_critical.assert_called_once_with(msg)
 
 
+def test_driver_property(config_instance):
+    assert isinstance(config_instance.driver, docker.Docker)
+
+
+@pytest.fixture
+def molecule_driver_azure_section_data():
+    return {
+        'driver': {
+            'name': 'azure'
+        },
+    }
+
+
+def test_driver_property_is_azure(molecule_driver_azure_section_data,
+                                  config_instance):
+    config_instance.merge_dicts(config_instance.config,
+                                molecule_driver_azure_section_data)
+
+    assert isinstance(config_instance.driver, azure.Azure)
+
+
 def test_driver_property_is_delegated(molecule_driver_delegated_section_data,
                                       config_instance):
     config_instance.merge_dicts(config_instance.config,
                                 molecule_driver_delegated_section_data)
 
     assert isinstance(config_instance.driver, delegated.Delegated)
-
-
-def test_driver_property(config_instance):
-    assert isinstance(config_instance.driver, dockr.Dockr)
 
 
 @pytest.fixture
@@ -255,6 +274,7 @@ def test_driver_property_raises(molecule_driver_invalid_section_data,
 
 def test_drivers_property(config_instance):
     x = [
+        'azure',
         'delegated',
         'docker',
         'ec2',
@@ -270,18 +290,30 @@ def test_drivers_property(config_instance):
 
 def test_env(config_instance):
     x = {
-        'MOLECULE_DEBUG': 'False',
-        'MOLECULE_FILE': config_instance.molecule_file,
-        'MOLECULE_INVENTORY_FILE': config_instance.provisioner.inventory_file,
-        'MOLECULE_EPHEMERAL_DIRECTORY': config_instance.ephemeral_directory,
-        'MOLECULE_SCENARIO_DIRECTORY': config_instance.scenario.directory,
-        'MOLECULE_INSTANCE_CONFIG': config_instance.driver.instance_config,
-        'MOLECULE_DEPENDENCY_NAME': 'galaxy',
-        'MOLECULE_DRIVER_NAME': 'docker',
-        'MOLECULE_LINT_NAME': 'yamllint',
-        'MOLECULE_PROVISIONER_NAME': 'ansible',
-        'MOLECULE_SCENARIO_NAME': 'default',
-        'MOLECULE_VERIFIER_NAME': 'testinfra'
+        'MOLECULE_DEBUG':
+        'False',
+        'MOLECULE_FILE':
+        config_instance.molecule_file,
+        'MOLECULE_INVENTORY_FILE':
+        config_instance.provisioner.inventory_file,
+        'MOLECULE_EPHEMERAL_DIRECTORY':
+        config_instance.scenario.ephemeral_directory,
+        'MOLECULE_SCENARIO_DIRECTORY':
+        config_instance.scenario.directory,
+        'MOLECULE_INSTANCE_CONFIG':
+        config_instance.driver.instance_config,
+        'MOLECULE_DEPENDENCY_NAME':
+        'galaxy',
+        'MOLECULE_DRIVER_NAME':
+        'docker',
+        'MOLECULE_LINT_NAME':
+        'yamllint',
+        'MOLECULE_PROVISIONER_NAME':
+        'ansible',
+        'MOLECULE_SCENARIO_NAME':
+        'default',
+        'MOLECULE_VERIFIER_NAME':
+        'testinfra'
     }
 
     assert x == config_instance.env
@@ -439,6 +471,28 @@ def test_get_driver_name_raises_when_different_driver_used(
     patched_logger_critical.assert_called_once_with(msg)
 
 
+def test_combine(config_instance):
+    assert isinstance(config_instance._combine(), dict)
+
+
+def test_combine_raises_on_failed_interpolation(patched_logger_critical,
+                                                config_instance):
+    contents = {'foo': '$6$8I5Cfmpr$kGZB'}
+    util.write_file(config_instance.molecule_file, util.safe_dump(contents))
+
+    with pytest.raises(SystemExit) as e:
+        config_instance._combine()
+
+    assert 1 == e.value.code
+
+    msg = ("parsing config file '{}'.\n\n"
+           'Invalid placeholder in string: line 4, col 6\n'
+           '# Molecule managed\n\n'
+           '---\n'
+           'foo: $6$8I5Cfmpr$kGZB\n').format(config_instance.molecule_file)
+    patched_logger_critical.assert_called_once_with(msg)
+
+
 def test_merge_dicts():
     # example taken from python-anyconfig/anyconfig/__init__.py
     a = {'b': [{'c': 0}, {'c': 2}], 'd': {'e': 'aaa', 'f': 3}}
@@ -458,6 +512,7 @@ def test_molecule_file():
 
 def test_molecule_drivers():
     x = [
+        'azure',
         'delegated',
         'docker',
         'ec2',

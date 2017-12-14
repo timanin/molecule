@@ -33,8 +33,13 @@ class DependencySchema(base.Base):
     env = marshmallow.fields.Dict()
 
 
+class DriverProviderSchema(base.Base):
+    name = marshmallow.fields.Str(allow_none=True)
+
+
 class DriverSchema(base.Base):
     name = marshmallow.fields.Str()
+    provider = marshmallow.fields.Nested(DriverProviderSchema())
     options = marshmallow.fields.Dict()
     ssh_connection_options = marshmallow.fields.List(marshmallow.fields.Str())
     safe_files = marshmallow.fields.List(marshmallow.fields.Str())
@@ -102,10 +107,11 @@ class ProvisionerInventorySchema(base.Base):
 
 
 class PlaybooksSchema(base.Base):
-    setup = marshmallow.fields.Str()
+    create = marshmallow.fields.Str()
     converge = marshmallow.fields.Str()
-    teardown = marshmallow.fields.Str()
-    destruct = marshmallow.fields.Str(allow_none=True)
+    destroy = marshmallow.fields.Str()
+    prepare = marshmallow.fields.Str()
+    side_effect = marshmallow.fields.Str(allow_none=True)
 
 
 class ProvisionerPlaybooksSchema(PlaybooksSchema):
@@ -134,6 +140,8 @@ class ScenarioSchema(base.Base):
     name = marshmallow.fields.Str()
     check_sequence = marshmallow.fields.List(marshmallow.fields.Str())
     converge_sequence = marshmallow.fields.List(marshmallow.fields.Str())
+    create_sequence = marshmallow.fields.List(marshmallow.fields.Str())
+    destroy_sequence = marshmallow.fields.List(marshmallow.fields.Str())
     test_sequence = marshmallow.fields.List(marshmallow.fields.Str())
 
 
@@ -143,6 +151,8 @@ class VerifierSchema(base.Base):
     directory = marshmallow.fields.Str()
     options = marshmallow.fields.Dict()
     env = marshmallow.fields.Dict()
+    additional_files_or_dirs = marshmallow.fields.List(
+        marshmallow.fields.Str())
     lint = marshmallow.fields.Nested(LintSchema())
 
 

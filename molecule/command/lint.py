@@ -49,6 +49,7 @@ class Lint(base.Base):
 
         :return: None
         """
+        self.print_info()
         linters = [
             l
             for l in [
@@ -57,11 +58,6 @@ class Lint(base.Base):
                 self._config.provisioner.lint,
             ] if l
         ]
-
-        msg = 'Scenario: [{}]'.format(self._config.scenario.name)
-        LOG.info(msg)
-        msg = 'Lint: [{}]'.format(','.join([f.name for f in linters]))
-        LOG.info(msg)
 
         for l in linters:
             l.execute()
@@ -77,11 +73,14 @@ class Lint(base.Base):
 def lint(ctx, scenario_name):  # pragma: no cover
     """ Lint the role. """
     args = ctx.obj.get('args')
+    subcommand = base._get_subcommand(__name__)
     command_args = {
-        'subcommand': __name__,
+        'subcommand': subcommand,
     }
 
     s = scenarios.Scenarios(
         base.get_configs(args, command_args), scenario_name)
-    for c in s.all:
-        Lint(c).execute()
+    s.print_matrix()
+    for scenario in s:
+        for term in scenario.sequence:
+            base.execute_subcommand(scenario.config, term)

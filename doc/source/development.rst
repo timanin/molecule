@@ -22,6 +22,10 @@ Pre-release
 Release
 -------
 
+Molecule follows `Semantic Versioning`_.
+
+.. _`Semantic Versioning`: http://semver.org
+
 Tag the release and push to github.com
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -44,7 +48,7 @@ Upload to `PyPI`_
     .. code-block:: bash
 
         $ cd /path/to/molecule
-        $ rm -rf build/ dist/
+        $ git clean -d -x -f molecule/cookiecutter/
         $ python setup.py sdist bdist_wheel
         $ twine upload dist/*
         $ rm -rf build/ dist/
